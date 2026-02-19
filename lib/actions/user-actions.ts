@@ -31,6 +31,7 @@ export async function createUser(data: any) {
             id: user.user.id,
             role_id: roleId,
             full_name: fullName,
+            email: email, // Sync email (needs migration)
             is_active: true
         })
 
@@ -169,7 +170,10 @@ export async function updateUser(userId: string, data: { fullName: string, email
     // 1. Update public.users
     const { error: dbError } = await supabaseAdmin
         .from('users')
-        .update({ full_name: data.fullName })
+        .update({
+            full_name: data.fullName,
+            email: data.email
+        })
         .eq('id', userId)
 
     if (dbError) return { success: false, error: dbError.message }

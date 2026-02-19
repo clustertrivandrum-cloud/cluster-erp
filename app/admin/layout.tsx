@@ -21,7 +21,7 @@ export default function AdminLayout({
 
             <div className="flex flex-col lg:pl-64 min-h-screen transition-all duration-300">
                 <Header onMenuClick={() => setSidebarOpen(true)} />
-                <main className={`flex-1 ${isPOS ? 'p-0 h-[calc(100vh-4rem)] overflow-hidden' : 'p-4 lg:p-8'}`}>
+                <main className={`flex-1 ${isPOS ? 'p-0 h-[calc(100dvh-4rem)] overflow-hidden' : 'p-4 lg:p-8'}`}>
                     {children}
                 </main>
             </div>

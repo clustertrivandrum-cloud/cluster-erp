@@ -36,7 +36,18 @@ export default function SettingsPage() {
 
     useEffect(() => {
         getSettings().then(data => {
-            if (data) setSettings(data)
+            if (data) {
+                // Ensure no null values to avoid React warning
+                setSettings({
+                    store_name: data.store_name || '',
+                    store_email: data.store_email || '',
+                    store_phone: data.store_phone || '',
+                    store_address: data.store_address || '',
+                    store_currency: data.store_currency || 'INR',
+                    tax_rate: data.tax_rate || 0,
+                    gstin: data.gstin || ''
+                })
+            }
             setLoading(false)
         })
     }, [])

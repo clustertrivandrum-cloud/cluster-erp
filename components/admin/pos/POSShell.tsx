@@ -264,9 +264,9 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
 
                         <div className="p-6 space-y-6">
                             {/* Total Hero */}
-                            <div className="text-center py-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-                                <p className="text-indigo-900/60 text-xs font-bold uppercase tracking-wider mb-1">Total Payable</p>
-                                <p className="text-4xl font-black text-indigo-700 tracking-tight">₹{grandTotal.toFixed(2)}</p>
+                            <div className="text-center py-4 bg-gray-50 rounded-2xl border border-gray-200">
+                                <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Total Payable</p>
+                                <p className="text-4xl font-black text-gray-900 tracking-tight">₹{grandTotal.toFixed(2)}</p>
                             </div>
 
                             {/* Payment Method Grid */}
@@ -278,13 +278,13 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
                                             key={method}
                                             onClick={() => setPaymentMethod(method)}
                                             className={`flex flex-col items-center justify-center py-4 rounded-xl border-2 transition-all duration-200 ${paymentMethod === method
-                                                ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700 shadow-sm transform scale-[1.02]'
-                                                : 'border-gray-100 bg-white text-gray-400 hover:border-gray-200 hover:bg-gray-50'
+                                                ? 'border-gray-900 bg-gray-900 text-white shadow-md transform scale-[1.02]'
+                                                : 'border-gray-100 bg-white text-gray-400 hover:border-gray-300 hover:bg-gray-50'
                                                 }`}
                                         >
-                                            {method === 'Cash' && <Banknote className={`w-8 h-8 mb-2 ${paymentMethod === method ? 'text-indigo-600' : 'text-gray-300'}`} />}
-                                            {method === 'Card' && <CreditCard className={`w-8 h-8 mb-2 ${paymentMethod === method ? 'text-indigo-600' : 'text-gray-300'}`} />}
-                                            {method === 'UPI' && <CheckCircle className={`w-8 h-8 mb-2 ${paymentMethod === method ? 'text-indigo-600' : 'text-gray-300'}`} />}
+                                            {method === 'Cash' && <Banknote className={`w-8 h-8 mb-2 ${paymentMethod === method ? 'text-white' : 'text-gray-300'}`} />}
+                                            {method === 'Card' && <CreditCard className={`w-8 h-8 mb-2 ${paymentMethod === method ? 'text-white' : 'text-gray-300'}`} />}
+                                            {method === 'UPI' && <CheckCircle className={`w-8 h-8 mb-2 ${paymentMethod === method ? 'text-white' : 'text-gray-300'}`} />}
                                             <span className="font-bold text-sm">{method}</span>
                                         </button>
                                     ))}
@@ -301,7 +301,7 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
                                             type="number"
                                             value={amountTendered}
                                             onChange={e => setAmountTendered(e.target.value)}
-                                            className="block w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg font-bold shadow-sm text-gray-900 placeholder:text-gray-400"
+                                            className="block w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900 text-lg font-bold shadow-sm text-gray-900 placeholder:text-gray-400"
                                             placeholder="0.00"
                                             autoFocus
                                         />
@@ -322,7 +322,7 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
                                     rows={2}
                                     value={notes}
                                     onChange={e => setNotes(e.target.value)}
-                                    className="block w-full border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 sm:text-sm p-3 resize-none bg-gray-50 text-gray-900 placeholder:text-gray-400"
+                                    className="block w-full border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 sm:text-sm p-3 resize-none bg-gray-50 text-gray-900 placeholder:text-gray-400"
                                     placeholder="Optional notes..."
                                 />
                             </div>
@@ -330,7 +330,7 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
                             <button
                                 onClick={handleCheckoutSubmit}
                                 disabled={isProcessing}
-                                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-indigo-700 disabled:opacity-70 disabled:hover:bg-indigo-600 shadow-xl shadow-indigo-200 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                                className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold text-lg hover:bg-black disabled:opacity-70 disabled:hover:bg-gray-900 shadow-xl shadow-gray-200 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
                             >
                                 {isProcessing ? (
                                     <span className="animate-pulse">Processing...</span>
