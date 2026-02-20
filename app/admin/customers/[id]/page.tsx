@@ -15,6 +15,7 @@ export default function CustomerDetailPage() {
     const [loading, setLoading] = useState(true)
 
     // Edit Mode
+    const [isEditing, setIsEditing] = useState(false)
     const [formData, setFormData] = useState<any>({})
 
     // Dialog State
