@@ -45,7 +45,7 @@ export default function PurchaseOrdersPage() {
                 </div>
                 <Link
                     href="/admin/purchase-orders/new"
-                    className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                    className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-gray-900 hover:bg-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors"
                 >
                     <Plus className="w-5 h-5 mr-2" />
                     Create Order
@@ -62,7 +62,7 @@ export default function PurchaseOrdersPage() {
                         <input
                             type="text"
                             placeholder="Search by Order #..."
-                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-900"
+                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-gray-900 focus:border-gray-900 sm:text-sm text-gray-900"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -140,7 +140,7 @@ export default function PurchaseOrdersPage() {
                                             ₹{parseFloat(order.total_amount).toLocaleString()}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <Link href={`/admin/purchase-orders/${order.id}`} className="text-indigo-600 hover:text-indigo-900 inline-flex items-center">
+                                            <Link href={`/admin/purchase-orders/${order.id}`} className="text-gray-900 hover:text-black inline-flex items-center">
                                                 View
                                                 <ChevronRight className="w-4 h-4 ml-1" />
                                             </Link>

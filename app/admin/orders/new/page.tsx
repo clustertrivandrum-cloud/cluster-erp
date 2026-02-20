@@ -145,7 +145,7 @@ export default function NewOrderPage() {
                             <input
                                 type="text"
                                 placeholder="Search products to add..."
-                                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 placeholder:text-gray-400"
+                                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-gray-900 focus:border-gray-900 text-gray-900 placeholder:text-gray-400"
                                 value={productSearch}
                                 onChange={e => setProductSearch(e.target.value)}
                             />
@@ -191,7 +191,7 @@ export default function NewOrderPage() {
                                                 type="number"
                                                 value={item.unit_price}
                                                 onChange={e => updateItem(idx, 'unit_price', parseFloat(e.target.value))}
-                                                className="block w-full text-sm border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 py-1 text-gray-900 placeholder:text-gray-400"
+                                                className="block w-full text-sm border-gray-300 rounded focus:ring-gray-900 focus:border-gray-900 py-1 text-gray-900 placeholder:text-gray-400"
                                             />
                                         </div>
 
@@ -201,7 +201,7 @@ export default function NewOrderPage() {
                                                 type="number"
                                                 value={item.quantity}
                                                 onChange={e => updateItem(idx, 'quantity', parseInt(e.target.value))}
-                                                className="block w-full text-sm border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500 py-1 text-gray-900 placeholder:text-gray-400"
+                                                className="block w-full text-sm border-gray-300 rounded focus:ring-gray-900 focus:border-gray-900 py-1 text-gray-900 placeholder:text-gray-400"
                                             />
                                         </div>
 
@@ -247,7 +247,7 @@ export default function NewOrderPage() {
                                     <span className="text-xs text-gray-500">or </span>
                                     <button
                                         onClick={() => setShowNewCustomer(true)}
-                                        className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                                        className="text-gray-900 hover:text-black text-sm font-medium"
                                     >
                                         Create New Customer
                                     </button>
@@ -260,7 +260,7 @@ export default function NewOrderPage() {
                                 <Input label="Last Name" value={newCustomerForm.last_name} onChange={e => setNewCustomerForm({ ...newCustomerForm, last_name: e.target.value })} />
                                 <Input label="Phone" value={newCustomerForm.phone} onChange={e => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })} />
                                 <div className="flex gap-2 pt-2">
-                                    <button onClick={handleCreateCustomer} className="flex-1 bg-indigo-600 text-white py-1.5 rounded text-sm font-medium">Save</button>
+                                    <button onClick={handleCreateCustomer} className="flex-1 bg-gray-900 text-white py-1.5 rounded text-sm font-medium">Save</button>
                                     <button onClick={() => setShowNewCustomer(false)} className="flex-1 bg-white border border-gray-300 text-gray-700 py-1.5 rounded text-sm">Cancel</button>
                                 </div>
                             </div>
@@ -283,7 +283,7 @@ export default function NewOrderPage() {
                     <button
                         onClick={handleSubmit}
                         disabled={submitting}
-                        className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg shadow-lg flex justify-center items-center disabled:opacity-70"
+                        className="w-full py-3 bg-gray-900 hover:bg-black text-white font-bold rounded-lg shadow-lg flex justify-center items-center disabled:opacity-70"
                     >
                         {submitting ? 'Creating...' : 'Create Order'}
                     </button>

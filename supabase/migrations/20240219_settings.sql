@@ -1,7 +1,7 @@
 -- App Settings Table (Singleton)
 create table if not exists app_settings (
     id uuid primary key default gen_random_uuid(),
-    store_name text default 'Cluster ERP',
+    store_name text default 'Cluster Fascination ERP',
     store_email text,
     store_phone text,
     store_address text,
@@ -20,5 +20,5 @@ create policy "Authenticated users can manage settings" on app_settings for all 
 
 -- Insert default row if not exists
 insert into app_settings (store_name)
-select 'Cluster ERP'
+select 'Cluster Fascination ERP'
 where not exists (select 1 from app_settings);

@@ -35,13 +35,15 @@ export async function middleware(request: NextRequest) {
         if (!user) {
             return NextResponse.redirect(new URL('/login', request.url))
         }
+    }
 
-        // Check for admin role (optional, but recommended for Super Admin)
-        // For now, we just ensure they are logged in. 
-        // real role checking involves querying the 'users' or 'roles' table which might be expensive in middleware
-        // typically we check claims or just fetch user details.
-
-        // For this setup, we will just strictly require login.
+    // Redirect root to dashboard if logged in, otherwise login
+    if (request.nextUrl.pathname === '/') {
+        if (user) {
+            return NextResponse.redirect(new URL('/admin', request.url))
+        } else {
+            return NextResponse.redirect(new URL('/login', request.url))
+        }
     }
 
     return response

@@ -6,6 +6,7 @@ import { MoreHorizontal, Shield, User as UserIcon, CheckCircle, XCircle, Trash2,
 import { useRouter } from 'next/navigation'
 import RolePermissionModal from './RolePermissionModal'
 import EditUserModal from './EditUserModal'
+import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
 
 interface User {
     id: string
@@ -41,6 +42,21 @@ export default function UserList({ users, roles }: UserListProps) {
     const [editingRole, setEditingRole] = useState<Role | null>(null)
     const [isRoleModalOpen, setIsRoleModalOpen] = useState(false)
 
+    // Confirmation Dialog State
+    const [confirmConfig, setConfirmConfig] = useState<{
+        isOpen: boolean
+        title: string
+        message: string
+        variant: 'danger' | 'primary' | 'success'
+        action: () => Promise<void> | void
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        variant: 'primary',
+        action: () => { }
+    })
+
     const handleRoleChange = async (userId: string, newRoleId: string) => {
         setLoadingId(userId)
         await updateUserRole(userId, newRoleId)
@@ -48,17 +64,33 @@ export default function UserList({ users, roles }: UserListProps) {
     }
 
     const handleStatusToggle = async (userId: string, currentStatus: boolean) => {
-        if (!confirm(`Are you sure you want to ${currentStatus ? 'deactivate' : 'activate'} this user?`)) return
-        setLoadingId(userId)
-        await toggleUserStatus(userId, !currentStatus)
-        setLoadingId(null)
+        setConfirmConfig({
+            isOpen: true,
+            title: currentStatus ? 'Deactivate User' : 'Activate User',
+            message: `Are you sure you want to ${currentStatus ? 'deactivate' : 'activate'} this user?`,
+            variant: currentStatus ? 'danger' : 'success',
+            action: async () => {
+                setLoadingId(userId)
+                await toggleUserStatus(userId, !currentStatus)
+                setLoadingId(null)
+                setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+            }
+        })
     }
 
     const handleDelete = async (userId: string) => {
-        if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return
-        setLoadingId(userId)
-        await deleteUser(userId)
-        setLoadingId(null)
+        setConfirmConfig({
+            isOpen: true,
+            title: 'Delete User',
+            message: 'Are you sure you want to delete this user? This action cannot be undone.',
+            variant: 'danger',
+            action: async () => {
+                setLoadingId(userId)
+                await deleteUser(userId)
+                setLoadingId(null)
+                setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+            }
+        })
     }
 
     const openEditUser = (user: User) => {
@@ -77,10 +109,10 @@ export default function UserList({ users, roles }: UserListProps) {
     return (
         <div className="space-y-6">
             {/* Role Management Tip */}
-            <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 flex items-center justify-between">
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <Shield className="w-5 h-5 text-indigo-600" />
-                    <p className="text-sm text-indigo-900 font-medium">Configure module access for each role.</p>
+                    <Shield className="w-5 h-5 text-gray-900" />
+                    <p className="text-sm text-gray-700 font-medium">Configure module access for each role.</p>
                 </div>
             </div>
 
@@ -101,7 +133,7 @@ export default function UserList({ users, roles }: UserListProps) {
                                 <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                                            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-900 font-bold">
                                                 {user.full_name?.charAt(0).toUpperCase() || <UserIcon className="w-5 h-5" />}
                                             </div>
                                             <div>
@@ -116,7 +148,7 @@ export default function UserList({ users, roles }: UserListProps) {
                                                 value={user.role_id || ''}
                                                 onChange={(e) => handleRoleChange(user.id, e.target.value)}
                                                 disabled={loadingId === user.id}
-                                                className="text-sm border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-1"
+                                                className="text-sm border-gray-300 rounded-lg shadow-sm focus:border-gray-900 focus:ring-gray-900 py-1"
                                             >
                                                 {roles.map(role => (
                                                     <option key={role.id} value={role.id}>
@@ -126,7 +158,7 @@ export default function UserList({ users, roles }: UserListProps) {
                                             </select>
                                             <button
                                                 onClick={() => openRoleSettings(user.role_id)}
-                                                className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-gray-100 rounded"
+                                                className="p-1 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded"
                                                 title="Configure Role Permissions"
                                             >
                                                 <Settings className="w-4 h-4" />
@@ -160,7 +192,7 @@ export default function UserList({ users, roles }: UserListProps) {
 
                                             <button
                                                 onClick={() => openEditUser(user)}
-                                                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                                                className="p-2 text-gray-900 hover:bg-gray-100 rounded-lg"
                                                 title="Edit Details"
                                             >
                                                 <Edit2 className="w-4 h-4" />
@@ -203,6 +235,15 @@ export default function UserList({ users, roles }: UserListProps) {
                     setIsEditModalOpen(false)
                     router.refresh()
                 }}
+            />
+
+            <ConfirmationDialog
+                isOpen={confirmConfig.isOpen}
+                onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmConfig.action}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                variant={confirmConfig.variant}
             />
         </div>
     )

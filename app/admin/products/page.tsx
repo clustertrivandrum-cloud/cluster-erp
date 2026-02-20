@@ -20,7 +20,7 @@ export default async function ProductsPage({
                 <h1 className="text-2xl font-bold text-gray-900">Products</h1>
                 <Link
                     href="/admin/products/new"
-                    className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                    className="flex items-center px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors"
                 >
                     <Plus className="w-5 h-5 mr-2" />
                     Add Product
@@ -36,7 +36,7 @@ export default async function ProductsPage({
                             name="q"
                             defaultValue={query}
                             placeholder="Search products..."
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                         />
                     </form>
                 </div>
@@ -71,8 +71,8 @@ export default async function ProductsPage({
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${product.status === 'active' ? 'bg-green-100 text-green-800' :
-                                                product.status === 'draft' ? 'bg-gray-100 text-gray-800' :
-                                                    'bg-red-100 text-red-800'
+                                            product.status === 'draft' ? 'bg-gray-100 text-gray-800' :
+                                                'bg-red-100 text-red-800'
                                             }`}>
                                             {product.status}
                                         </span>
@@ -85,7 +85,7 @@ export default async function ProductsPage({
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div className="flex items-center justify-end space-x-2">
-                                            <Link href={`/admin/products/${product.id}`} className="text-indigo-600 hover:text-indigo-900 p-1 hover:bg-indigo-50 rounded">
+                                            <Link href={`/admin/products/${product.id}`} className="text-gray-500 hover:text-gray-900 p-1 hover:bg-gray-100 rounded">
                                                 <Edit className="w-5 h-5" />
                                             </Link>
                                             <button className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded">

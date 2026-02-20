@@ -16,12 +16,12 @@ export default function AdminLayout({
     const isPOS = pathname === '/admin/pos';
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className={`bg-gray-50 ${isPOS ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
             <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-            <div className="flex flex-col lg:pl-64 min-h-screen transition-all duration-300">
+            <div className={`flex flex-col lg:pl-64 transition-all duration-300 ${isPOS ? 'h-full' : 'min-h-screen'}`}>
                 <Header onMenuClick={() => setSidebarOpen(true)} />
-                <main className={`flex-1 ${isPOS ? 'p-0 h-[calc(100dvh-4rem)] overflow-hidden' : 'p-4 lg:p-8'}`}>
+                <main className={`flex-1 ${isPOS ? 'p-0 overflow-hidden relative' : 'p-4 lg:p-8'}`}>
                     {children}
                 </main>
             </div>

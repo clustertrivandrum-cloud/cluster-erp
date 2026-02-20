@@ -6,7 +6,7 @@ import Image from 'next/image';
 
 interface ImageUploadProps {
     value: string[];
-    onChange: (value: string[]) => void;
+    onChange: (value: string) => void;
     onRemove: (value: string) => void;
 }
 
@@ -16,7 +16,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     onRemove
 }) => {
     const onUpload = (result: any) => {
-        onChange([...value, result.info.secure_url]);
+        onChange(result.info.secure_url);
     };
 
     return (
@@ -45,6 +45,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
             <CldUploadWidget
                 uploadPreset="cluster-erp-preset"
                 onSuccess={onUpload}
+                options={{ multiple: true }}
             >
                 {({ open }) => {
                     const onClick = () => {
@@ -55,10 +56,10 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                         <button
                             type="button"
                             onClick={onClick}
-                            className="relative block w-full border-2 border-gray-300 border-dashed rounded-lg p-12 text-center hover:border-indigo-500 hover:bg-indigo-50 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            className="relative block w-full border-2 border-gray-300 border-dashed rounded-lg p-12 text-center hover:border-gray-900 hover:bg-gray-50 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900"
                         >
                             <div className="flex flex-col items-center justify-center">
-                                <ImagePlus className="mx-auto h-12 w-12 text-gray-400 group-hover:text-indigo-500" />
+                                <ImagePlus className="mx-auto h-12 w-12 text-gray-400 group-hover:text-gray-900" />
                                 <span className="mt-2 block text-sm font-medium text-gray-900">
                                     Upload Images
                                 </span>

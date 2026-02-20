@@ -107,7 +107,7 @@ export default function POSCart({
                                             }}
                                             className="w-full text-left p-3 hover:bg-gray-50 rounded-xl flex justify-between items-center transition-colors group"
                                         >
-                                            <span className="font-bold text-gray-900 group-hover:text-indigo-700">{c.first_name} {c.last_name}</span>
+                                            <span className="font-bold text-gray-900 group-hover:text-black">{c.first_name} {c.last_name}</span>
                                             <span className="text-gray-500 text-xs font-mono bg-white px-1.5 py-0.5 rounded border border-gray-100">{c.phone}</span>
                                         </button>
                                     ))}
@@ -176,7 +176,7 @@ export default function POSCart({
             </div>
 
             {/* Calculations & Actions */}
-            <div className="p-5 bg-white border-t border-gray-100 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] rounded-t-3xl z-30">
+            <div className="px-5 pt-5 pb-3 bg-white border-t border-gray-100 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] rounded-t-3xl z-30">
                 {/* Discount Toggle */}
                 <div className="mb-4">
                     <div className="flex items-center justify-between text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
@@ -187,11 +187,11 @@ export default function POSCart({
                         <div className="flex bg-gray-100 rounded-lg p-1 flex-1">
                             <button
                                 onClick={() => setDiscountType('fixed')}
-                                className={`flex-1 text-xs font-bold py-2 rounded-md transition-all ${discountType === 'fixed' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}
+                                className={`flex-1 text-xs font-bold py-2 rounded-md transition-all ${discountType === 'fixed' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
                             >₹ Fixed</button>
                             <button
                                 onClick={() => setDiscountType('percent')}
-                                className={`flex-1 text-xs font-bold py-2 rounded-md transition-all ${discountType === 'percent' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}
+                                className={`flex-1 text-xs font-bold py-2 rounded-md transition-all ${discountType === 'percent' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
                             >% Percentage</button>
                         </div>
                         <div className="w-24 relative">
@@ -199,7 +199,7 @@ export default function POSCart({
                                 type="number"
                                 value={discountValue || ''}
                                 onChange={e => setDiscountValue(parseFloat(e.target.value) || 0)}
-                                className="w-full bg-gray-50 border border-gray-200 rounded-lg py-2 pl-3 pr-2 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all placeholder:text-gray-300"
+                                className="w-full bg-gray-50 border border-gray-200 rounded-lg py-2 pl-3 pr-2 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 outline-none transition-all placeholder:text-gray-300"
                                 placeholder="0"
                             />
                         </div>
@@ -223,17 +223,17 @@ export default function POSCart({
                     )}
                     <div className="flex justify-between items-baseline pt-3 border-t border-gray-200/50 mt-1">
                         <span className="text-base font-bold text-gray-900">Total Payable</span>
-                        <span className="text-2xl font-black text-indigo-600">₹{grandTotal.toFixed(2)}</span>
+                        <span className="text-2xl font-black text-gray-900">₹{grandTotal.toFixed(2)}</span>
                     </div>
                 </div>
 
                 <button
                     onClick={onCheckout}
                     disabled={cart.length === 0}
-                    className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-indigo-200 active:scale-[0.98] transition-all disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-gray-900 hover:bg-black text-white rounded-2xl font-bold text-lg shadow-xl shadow-gray-200 active:scale-[0.98] transition-all disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
                 >
                     Proceed to Checkout
-                    <span className="bg-indigo-500/50 px-2 py-0.5 rounded text-sm group-hover:bg-indigo-500">({cart.length})</span>
+                    <span className="bg-gray-800 px-2 py-0.5 rounded text-sm group-hover:bg-gray-900">({cart.length})</span>
                 </button>
             </div>
         </div>

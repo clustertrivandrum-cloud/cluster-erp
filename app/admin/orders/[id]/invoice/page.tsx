@@ -45,16 +45,16 @@ export default function InvoicePage() {
                 <div className="flex justify-end mb-8 print:hidden">
                     <button
                         onClick={() => window.print()}
-                        className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                        className="flex items-center px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black"
                     >
-                        <Printer className="w-4 h-4 mr-2" /> Print Invoice
+                        <Printer className="w-4 h-4 mr-2" /> Print Invoice          
                     </button>
                 </div>
 
                 {/* Header */}
                 <div className="flex justify-between items-start border-b border-gray-200 pb-8 mb-8">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900 mb-2">{settings?.store_name || 'Cluster ERP'}</h1>
+                        <h1 className="text-3xl font-bold text-gray-900 mb-2">{settings?.store_name || 'Cluster Fascination ERP'}</h1>  
                         <p className="text-gray-500 whitespace-pre-line">{settings?.store_address}</p>
                         <p className="text-gray-500 mt-2">GSTIN: {settings?.gstin}</p>
                         <p className="text-gray-500">{settings?.store_email}</p>
@@ -122,7 +122,7 @@ export default function InvoicePage() {
                         </div>
                         <div className="flex justify-between pt-4 border-t border-gray-200">
                             <span className="text-xl font-bold text-gray-900">Total</span>
-                            <span className="text-xl font-bold text-indigo-600">{settings?.store_currency} {order.total_amount}</span>
+                            <span className="text-xl font-bold text-gray-900">{settings?.store_currency} {order.total_amount}</span>
                         </div>
                     </div>
                 </div>

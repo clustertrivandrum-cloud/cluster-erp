@@ -53,7 +53,7 @@ export default function KeyValueEditor({ initialValue, onChange }: KeyValueEdito
                             value={row.key}
                             onChange={(e) => updateRow(index, 'key', e.target.value)}
                             placeholder="Data (e.g. Color)"
-                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm px-3 py-2 border"
                         />
                     </div>
                     <div className="flex-1">
@@ -62,7 +62,7 @@ export default function KeyValueEditor({ initialValue, onChange }: KeyValueEdito
                             value={row.value}
                             onChange={(e) => updateRow(index, 'value', e.target.value)}
                             placeholder="Value (e.g. Red)"
-                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm px-3 py-2 border"
                         />
                     </div>
                     <button
@@ -77,7 +77,7 @@ export default function KeyValueEditor({ initialValue, onChange }: KeyValueEdito
             <button
                 type="button"
                 onClick={addRow}
-                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-gray-900 bg-gray-100 hover:bg-gray-200 transition-colors"
             >
                 <Plus className="w-3 h-3 mr-1" />
                 Add Specification

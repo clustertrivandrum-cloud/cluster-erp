@@ -11,6 +11,8 @@ import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
 import Select from '@/components/ui/Select'
 import Label from '@/components/ui/Label'
+import Dialog from '@/components/ui/Dialog'
+
 
 interface Option {
     id: string
@@ -58,6 +60,10 @@ export default function ProductForm() {
 
     // Modal state for editing variant images
     const [editingVariantId, setEditingVariantId] = useState<string | null>(null)
+
+    // Alert Dialog State
+    const [alertOpen, setAlertOpen] = useState(false)
+    const [alertMessage, setAlertMessage] = useState('')
 
     // Helper to generate combinations
     useEffect(() => {
@@ -165,7 +171,8 @@ export default function ProductForm() {
 
         // Validation for variants
         if (options.length > 0 && variants.length === 0) {
-            alert("Please add at least one option value to generate variants.")
+            setAlertMessage("Please add at least one option value to generate variants.")
+            setAlertOpen(true)
             setLoading(false)
             return
         }
@@ -178,7 +185,8 @@ export default function ProductForm() {
         const result = await createProduct(formData)
 
         if (result?.error) {
-            alert(result.error)
+            setAlertMessage(result.error)
+            setAlertOpen(true)
         }
 
         setLoading(false)
@@ -244,8 +252,8 @@ export default function ProductForm() {
                         <div className="p-4 md:p-6">
                             <ImageUpload
                                 value={images}
-                                onChange={(urls) => setImages(urls)}
-                                onRemove={(url) => setImages(images.filter((current) => current !== url))}
+                                onChange={(url) => setImages((prev) => [...prev, url])}
+                                onRemove={(url) => setImages((prev) => prev.filter((current) => current !== url))}
                             />
                             <p className="text-sm text-gray-500 mt-2">Upload general product images here. Variant-specific images can be added in the variants section.</p>
                         </div>
@@ -333,7 +341,7 @@ export default function ProductForm() {
                                         type="checkbox"
                                         id="is_customizable"
                                         name="is_customizable"
-                                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                        className="h-4 w-4 text-gray-900 focus:ring-gray-900 border-gray-300 rounded"
                                     />
                                     <label htmlFor="is_customizable" className="text-sm font-medium text-gray-700">
                                         Is Customizable? (e.g. Engraving, Sizing)
@@ -381,7 +389,7 @@ export default function ProductForm() {
                             <button
                                 type="button"
                                 onClick={addOption}
-                                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-gray-900 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors"
                             >
                                 <Plus className="w-4 h-4 mr-1" />
                                 Add Option
@@ -393,7 +401,7 @@ export default function ProductForm() {
                             {options.length > 0 ? (
                                 <div className="space-y-4">
                                     {options.map((option, index) => (
-                                        <div key={option.id} className="relative group bg-white border border-gray-200 rounded-lg p-5 hover:border-indigo-300 transition-colors">
+                                        <div key={option.id} className="relative group bg-white border border-gray-200 rounded-lg p-5 hover:border-gray-400 transition-colors">
                                             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button
                                                     type="button"
@@ -417,12 +425,12 @@ export default function ProductForm() {
                                                     <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Option Values</label>
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         {option.values.map((val, vIndex) => (
-                                                            <span key={vIndex} className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                                            <span key={vIndex} className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-900 border border-gray-200">
                                                                 {val}
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => removeOptionValue(index, vIndex)}
-                                                                    className="ml-1.5 text-indigo-400 hover:text-indigo-900"
+                                                                    className="ml-1.5 text-gray-400 hover:text-gray-900"
                                                                 >
                                                                     <X className="w-3 h-3" />
                                                                 </button>
@@ -439,7 +447,7 @@ export default function ProductForm() {
                                                                         e.currentTarget.value = ''
                                                                     }
                                                                 }}
-                                                                className="block w-40 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-xs py-1.5"
+                                                                className="block w-40 rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-xs py-1.5"
                                                             />
                                                             <span className="absolute right-2 top-1.5 text-xs text-gray-400 pointer-events-none">↵</span>
                                                         </div>
@@ -459,7 +467,7 @@ export default function ProductForm() {
                             {variants.length > 0 && (
                                 <div className="mt-8">
                                     <h4 className="text-sm font-medium text-gray-900 mb-4 flex items-center">
-                                        <ChevronRight className="w-4 h-4 text-indigo-600 mr-1" />
+                                        <ChevronRight className="w-4 h-4 text-gray-900 mr-1" />
                                         Preview & Edit Variants
                                     </h4>
                                     <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
@@ -490,7 +498,7 @@ export default function ProductForm() {
                                                                         step="0.01"
                                                                         value={variant.price}
                                                                         onChange={(e) => updateVariant(index, 'price', parseFloat(e.target.value))}
-                                                                        className="block w-full pl-6 rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-1"
+                                                                        className="block w-full pl-6 rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900 sm:text-sm py-1"
                                                                     />
                                                                 </div>
                                                             </td>
@@ -499,7 +507,7 @@ export default function ProductForm() {
                                                                     type="text"
                                                                     value={variant.sku}
                                                                     onChange={(e) => updateVariant(index, 'sku', e.target.value)}
-                                                                    className="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-1"
+                                                                    className="block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900 sm:text-sm py-1"
                                                                 />
                                                             </td>
                                                             <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
@@ -507,15 +515,15 @@ export default function ProductForm() {
                                                                     type="number"
                                                                     value={variant.quantity}
                                                                     onChange={(e) => updateVariant(index, 'quantity', parseInt(e.target.value))}
-                                                                    className="block w-full rounded-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-1"
+                                                                    className="block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900 sm:text-sm py-1"
                                                                 />
                                                             </td>
                                                             <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setEditingVariantId(variant.id)}
-                                                                    className={`inline-flex items-center px-2.5 py-1.5 border text-xs font-medium rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${variant.images.length > 0
-                                                                        ? 'border-transparent text-indigo-700 bg-indigo-100 hover:bg-indigo-200'
+                                                                    className={`inline-flex items-center px-2.5 py-1.5 border text-xs font-medium rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 ${variant.images.length > 0
+                                                                        ? 'border-transparent text-gray-900 bg-gray-100 hover:bg-gray-200'
                                                                         : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
                                                                         }`}
                                                                 >
@@ -525,7 +533,7 @@ export default function ProductForm() {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setEditingVariantId(variant.id)}
-                                                                    className="ml-2 text-indigo-600 hover:text-indigo-900 text-xs font-medium"
+                                                                    className="ml-2 text-gray-900 hover:text-black text-xs font-medium"
                                                                 >
                                                                     Edit Details
                                                                 </button>
@@ -652,7 +660,7 @@ export default function ProductForm() {
                                     type="checkbox"
                                     id="is_featured"
                                     name="is_featured"
-                                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                    className="h-4 w-4 text-gray-900 focus:ring-gray-900 border-gray-300 rounded"
                                 />
                                 <label htmlFor="is_featured" className="text-sm font-medium text-gray-700">
                                     Feature this product
@@ -673,7 +681,7 @@ export default function ProductForm() {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                                className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-gray-900 hover:bg-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                             >
                                 {loading ? (
                                     <>
@@ -801,7 +809,7 @@ export default function ProductForm() {
                                     key={tab}
                                     onClick={() => setActiveVariantTab(tab)}
                                     className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors capitalize ${activeVariantTab === tab
-                                        ? 'border-indigo-600 text-indigo-600'
+                                        ? 'border-gray-900 text-gray-900'
                                         : 'border-transparent text-gray-500 hover:text-gray-700'
                                         }`}
                                 >
@@ -974,7 +982,7 @@ export default function ProductForm() {
                             <button
                                 type="button"
                                 onClick={() => setEditingVariantId(null)}
-                                className="px-5 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 shadow-sm transition-colors focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                className="px-5 py-2.5 bg-gray-900 text-white font-medium rounded-lg hover:bg-black shadow-sm transition-colors focus:ring-2 focus:ring-offset-2 focus:ring-gray-900"
                             >
                                 Done
                             </button>
@@ -982,6 +990,29 @@ export default function ProductForm() {
                     </div>
                 </div>
             )}
+
+            {/* Simple Alert Dialog */}
+            <Dialog
+                isOpen={alertOpen}
+                onClose={() => setAlertOpen(false)}
+                title="Error"
+            >
+                <div className="mt-2">
+                    <p className="text-sm text-gray-500">
+                        {alertMessage}
+                    </p>
+                </div>
+
+                <div className="mt-4">
+                    <button
+                        type="button"
+                        className="inline-flex justify-center rounded-md border border-transparent bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2"
+                        onClick={() => setAlertOpen(false)}
+                    >
+                        Got it, thanks!
+                    </button>
+                </div>
+            </Dialog>
         </div>
     )
 }

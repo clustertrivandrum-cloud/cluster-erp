@@ -89,7 +89,7 @@ export default function CustomizationBuilder({ initialValue, onChange }: Customi
                                 value={field.label}
                                 onChange={(e) => updateField(index, 'label', e.target.value)}
                                 placeholder="e.g. Engraving Text"
-                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm px-3 py-2 border"
                             />
                         </div>
                         <div>
@@ -97,7 +97,7 @@ export default function CustomizationBuilder({ initialValue, onChange }: Customi
                             <select
                                 value={field.type}
                                 onChange={(e) => updateField(index, 'type', e.target.value as 'text' | 'options')}
-                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm px-3 py-2 border"
                             >
                                 <option value="text">Text Input</option>
                                 <option value="options">Selection Options</option>
@@ -113,7 +113,7 @@ export default function CustomizationBuilder({ initialValue, onChange }: Customi
                                 value={field.optionsString}
                                 onChange={(e) => updateField(index, 'optionsString', e.target.value)}
                                 placeholder="e.g. Size 6, Size 7, Size 8"
-                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2 border"
+                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm px-3 py-2 border"
                             />
                         </div>
                     )}
@@ -122,7 +122,7 @@ export default function CustomizationBuilder({ initialValue, onChange }: Customi
             <button
                 type="button"
                 onClick={addField}
-                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-gray-900 bg-gray-100 hover:bg-gray-200 transition-colors"
             >
                 <Plus className="w-3 h-3 mr-1" />
                 Add Custom Field

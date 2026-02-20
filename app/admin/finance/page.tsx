@@ -51,15 +51,15 @@ export default async function FinancePage({ searchParams }: Props) {
                     <p className="text-sm text-gray-500 mt-1">Operational costs + Overheads</p>
                 </div>
 
-                <div className="bg-secondary text-white p-6 rounded-2xl shadow-lg shadow-indigo-200 bg-gradient-to-br from-indigo-600 to-indigo-800">
+                <div className="bg-secondary text-white p-6 rounded-2xl shadow-lg shadow-gray-200 bg-gradient-to-br from-gray-900 to-black">
                     <div className="flex items-center justify-between mb-4">
                         <div className="p-3 bg-white/10 rounded-xl text-white backdrop-blur-sm">
                             <Wallet className="w-6 h-6" />
                         </div>
-                        <span className="text-xs font-bold text-indigo-100 uppercase tracking-wider">Net Profit</span>
+                        <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">Net Profit</span>
                     </div>
                     <div className="text-3xl font-black text-white">₹{stats.profit.toLocaleString()}</div>
-                    <p className="text-sm text-indigo-100 mt-1">Revenue - Expenses</p>
+                    <p className="text-sm text-gray-300 mt-1">Revenue - Expenses</p>
                 </div>
             </div>
 

@@ -122,7 +122,7 @@ export default function SupplierForm({ supplier, onClose, onSuccess }: SupplierF
                         <button
                             type="submit"
                             disabled={loading}
-                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm transition-all shadow-sm disabled:opacity-70"
+                            className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black font-medium text-sm transition-all shadow-sm disabled:opacity-70"
                         >
                             {loading ? 'Saving...' : 'Save Supplier'}
                         </button>

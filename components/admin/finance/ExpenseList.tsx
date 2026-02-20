@@ -101,7 +101,7 @@ export default function ExpenseList({ initialExpenses }: ExpenseListProps) {
                                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Title</label>
                                 <input
                                     required
-                                    className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder:text-gray-400"
+                                    className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 text-gray-900 placeholder:text-gray-400"
                                     placeholder="e.g. Shop Rent"
                                     value={formData.title}
                                     onChange={e => setFormData({ ...formData, title: e.target.value })}
@@ -115,7 +115,7 @@ export default function ExpenseList({ initialExpenses }: ExpenseListProps) {
                                         <input
                                             required
                                             type="number"
-                                            className="w-full p-2 pl-7 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder:text-gray-400"
+                                            className="w-full p-2 pl-7 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 text-gray-900 placeholder:text-gray-400"
                                             placeholder="0.00"
                                             value={formData.amount}
                                             onChange={e => setFormData({ ...formData, amount: e.target.value })}
@@ -127,7 +127,7 @@ export default function ExpenseList({ initialExpenses }: ExpenseListProps) {
                                     <input
                                         required
                                         type="date"
-                                        className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder:text-gray-400"
+                                        className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 text-gray-900 placeholder:text-gray-400"
                                         value={formData.expense_date}
                                         onChange={e => setFormData({ ...formData, expense_date: e.target.value })}
                                     />
@@ -136,7 +136,7 @@ export default function ExpenseList({ initialExpenses }: ExpenseListProps) {
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Category</label>
                                 <select
-                                    className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 text-gray-900 placeholder:text-gray-400"
+                                    className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gray-900 text-gray-900 placeholder:text-gray-400"
                                     value={formData.category}
                                     onChange={e => setFormData({ ...formData, category: e.target.value })}
                                 >
@@ -153,7 +153,7 @@ export default function ExpenseList({ initialExpenses }: ExpenseListProps) {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-70 transition-all shadow-lg shadow-indigo-200"
+                                className="w-full bg-gray-900 text-white py-3 rounded-xl font-bold hover:bg-black disabled:opacity-70 transition-all shadow-lg shadow-gray-200"
                             >
                                 {loading ? 'Saving...' : 'Save Expense'}
                             </button>

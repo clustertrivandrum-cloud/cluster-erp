@@ -33,7 +33,7 @@ export default function CustomersPage() {
                     <input
                         type="text"
                         placeholder="Search by name, email, or phone..."
-                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-900 placeholder:text-gray-400"
+                        className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-gray-900 focus:border-gray-900 sm:text-sm text-gray-900 placeholder:text-gray-400"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
@@ -64,7 +64,7 @@ export default function CustomersPage() {
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center">
                                             <div className="flex-shrink-0 h-10 w-10">
-                                                <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold">
+                                                <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-900 font-bold">
                                                     {customer.first_name?.[0]}{customer.last_name?.[0]}
                                                 </div>
                                             </div>
@@ -90,7 +90,7 @@ export default function CustomersPage() {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <Link href={`/admin/customers/${customer.id}`} className="text-indigo-600 hover:text-indigo-900">
+                                        <Link href={`/admin/customers/${customer.id}`} className="text-gray-900 hover:text-black">
                                             View Profile
                                         </Link>
                                     </td>

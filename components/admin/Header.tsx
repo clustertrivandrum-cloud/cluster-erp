@@ -21,7 +21,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
             <div className="flex items-center space-x-4">
                 {/* Placeholder for user profile or notifications */}
-                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-900 font-bold">
                     A
                 </div>
             </div>

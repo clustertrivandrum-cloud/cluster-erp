@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { getMyPermissions } from '@/lib/actions/user-actions';
 import { LayoutDashboard, ShoppingBag, Users, Settings, Package, FileText, LogOut, X, Folder, Truck, ClipboardList, CreditCard } from 'lucide-react';
+import { createBrowserClient } from '@supabase/ssr';
 
 // Simple utility if @/lib/utils doesn't exist
 function classNames(...classes: string[]) {
@@ -35,7 +36,21 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const pathname = usePathname();
+    const router = useRouter();
     const [permissions, setPermissions] = useState<string[] | null>(null);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+    const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
+    const handleLogout = async () => {
+        setIsLoggingOut(true);
+        await supabase.auth.signOut();
+        router.push('/login');
+        router.refresh();
+    };
 
     useEffect(() => {
         // Fetch permissions
@@ -88,7 +103,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 )}
             >
                 <div className="h-16 flex items-center justify-between px-6 border-b border-gray-200">
-                    <h1 className="text-xl font-bold text-indigo-600">Cluster ERP</h1>
+                    <h1 className="text-xl font-bold text-gray-900">Cluster Fascination</h1>
                     <button onClick={onClose} className="lg:hidden p-1 text-gray-500 hover:bg-gray-100 rounded-md">
                         <X className="w-5 h-5" />
                     </button>
@@ -113,11 +128,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                                     className={classNames(
                                         "flex items-center px-4 py-2 rounded-lg transition-colors group",
                                         isActive
-                                            ? "bg-indigo-50 text-indigo-600"
-                                            : "text-gray-700 hover:bg-gray-100 hover:text-indigo-600"
+                                            ? "bg-gray-900 text-white"
+                                            : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                                     )}
                                 >
-                                    <Icon className={classNames("w-5 h-5 mr-3", isActive ? "text-indigo-600" : "text-gray-400 group-hover:text-indigo-600")} />
+                                    <Icon className={classNames("w-5 h-5 mr-3", isActive ? "text-white" : "text-gray-400 group-hover:text-gray-900")} />
                                     <span className="font-medium">{item.name}</span>
                                 </Link>
                             );
@@ -126,9 +141,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 </nav>
 
                 <div className="p-4 border-t border-gray-200">
-                    <button className="flex items-center w-full px-4 py-2 text-red-600 rounded-lg hover:bg-red-50 transition-colors">
+                    <button
+                        onClick={handleLogout}
+                        disabled={isLoggingOut}
+                        className="flex items-center w-full px-4 py-2 text-red-600 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+                    >
                         <LogOut className="w-5 h-5 mr-3" />
-                        <span className="font-medium">Logout</span>
+                        <span className="font-medium">{isLoggingOut ? 'Logging out...' : 'Logout'}</span>
                     </button>
                 </div>
             </aside>

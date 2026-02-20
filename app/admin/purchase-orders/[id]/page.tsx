@@ -152,7 +152,7 @@ export default function PurchaseOrderDetailPage({ params }: { params: Promise<{ 
                             <tfoot className="bg-gray-50">
                                 <tr>
                                     <td colSpan={3} className="px-6 py-4 text-sm font-bold text-gray-900 text-right">Total Amount</td>
-                                    <td className="px-6 py-4 text-sm font-bold text-indigo-600 text-right">
+                                    <td className="px-6 py-4 text-sm font-bold text-gray-900 text-right">
                                         ₹{parseFloat(order.total_amount).toLocaleString()}
                                     </td>
                                 </tr>

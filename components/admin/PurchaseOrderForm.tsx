@@ -161,7 +161,7 @@ export default function PurchaseOrderForm() {
                     <button
                         type="submit"
                         disabled={loading}
-                        className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-gray-900 hover:bg-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                         Create Order
@@ -179,7 +179,7 @@ export default function PurchaseOrderForm() {
                             <button
                                 type="button"
                                 onClick={() => setIsAddingItem(true)}
-                                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-gray-900 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors"
                             >
                                 <Plus className="w-4 h-4 mr-1" />
                                 Add Item
@@ -195,7 +195,7 @@ export default function PurchaseOrderForm() {
                                 <button
                                     type="button"
                                     onClick={() => setIsAddingItem(true)}
-                                    className="mt-6 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                                    className="mt-6 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-black transition-colors"
                                 >
                                     Add Products
                                 </button>
@@ -253,7 +253,7 @@ export default function PurchaseOrderForm() {
                                     <tfoot className="bg-gray-50 border-t border-gray-200">
                                         <tr>
                                             <td colSpan={3} className="px-4 py-3 text-right text-sm font-bold text-gray-900">Total Amount</td>
-                                            <td className="px-4 py-3 text-right text-sm font-bold text-indigo-600">₹{totalAmount.toFixed(2)}</td>
+                                            <td className="px-4 py-3 text-right text-sm font-bold text-gray-900">₹{totalAmount.toFixed(2)}</td>
                                             <td></td>
                                         </tr>
                                     </tfoot>
@@ -270,7 +270,7 @@ export default function PurchaseOrderForm() {
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
                             <select
-                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-gray-900"
+                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm text-gray-900"
                                 value={supplierId}
                                 onChange={(e) => setSupplierId(e.target.value)}
                             >
@@ -279,7 +279,7 @@ export default function PurchaseOrderForm() {
                                     <option key={s.id} value={s.id}>{s.name} {s.contact_person ? `(${s.contact_person})` : ''}</option>
                                 ))}
                             </select>
-                            <p className="mt-1 text-xs text-blue-600 hover:text-blue-800 cursor-pointer text-right">
+                            <p className="mt-1 text-xs text-gray-900 hover:text-black cursor-pointer text-right">
                                 <a href="/admin/suppliers/new" target="_blank">+ Create New Supplier</a>
                             </p>
                         </div>

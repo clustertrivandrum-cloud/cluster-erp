@@ -135,7 +135,7 @@ export default function CategoryForm({ category, categories, onClose, onSuccess 
                         <div className="mt-1">
                             <ImageUpload
                                 value={image ? [image] : []}
-                                onChange={(urls) => setImage(urls[0] || '')}
+                                onChange={(url) => setImage(url)}
                                 onRemove={() => setImage('')}
                             />
                         </div>
@@ -153,7 +153,7 @@ export default function CategoryForm({ category, categories, onClose, onSuccess 
                     <button
                         onClick={handleSubmit}
                         disabled={loading}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm transition-colors shadow-sm disabled:opacity-70"
+                        className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black font-medium text-sm transition-colors shadow-sm disabled:opacity-70"
                     >
                         {loading ? 'Saving...' : 'Save Category'}
                     </button>

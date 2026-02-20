@@ -13,7 +13,7 @@ function Textarea({ label, name, value, onChange, rows = 3 }: any) {
             <textarea
                 name={name}
                 rows={rows}
-                className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                className="shadow-sm focus:ring-gray-900 focus:border-gray-900 block w-full sm:text-sm border-gray-300 rounded-md"
                 value={value}
                 onChange={onChange}
             />
@@ -78,7 +78,7 @@ export default function SettingsPage() {
     return (
         <div className="max-w-4xl mx-auto pb-10">
             <div className="flex items-center mb-8">
-                <div className="bg-indigo-600 p-2 rounded-lg mr-4">
+                <div className="bg-gray-900 p-2 rounded-lg mr-4">
                     <Store className="w-6 h-6 text-white" />
                 </div>
                 <div>
@@ -118,7 +118,7 @@ export default function SettingsPage() {
                     <button
                         onClick={handleSubmit}
                         disabled={saving}
-                        className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-70"
+                        className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-gray-900 hover:bg-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-70"
                     >
                         <Save className="w-4 h-4 mr-2" />
                         {saving ? 'Saving...' : 'Save Settings'}

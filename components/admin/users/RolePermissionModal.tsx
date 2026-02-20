@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createRole, getPermissions, getRolePermissions, updateRolePermissions } from '@/lib/actions/user-actions'
 import { Shield, Save, X, Loader2, Settings } from 'lucide-react'
+import Dialog from '@/components/ui/Dialog'
 
 interface Role {
     id: string
@@ -27,6 +28,7 @@ export default function RolePermissionModal({ role, onClose, onSuccess }: RolePe
     const [roleName, setRoleName] = useState(role?.name || '')
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
+    const [alertConfig, setAlertConfig] = useState({ isOpen: false, message: '' })
 
     useEffect(() => {
         loadData()
@@ -85,7 +87,7 @@ export default function RolePermissionModal({ role, onClose, onSuccess }: RolePe
             // Let's assume for now we just handle Edit Mode perfectly. 
             // For Create, we'll just do name.
             if (!createRes.success) {
-                alert(createRes.error)
+                setAlertConfig({ isOpen: true, message: createRes.error || 'Failed to create role' })
                 setSaving(false)
                 return
             }
@@ -101,7 +103,7 @@ export default function RolePermissionModal({ role, onClose, onSuccess }: RolePe
             onSuccess()
             onClose()
         } else {
-            alert(updateRes.error)
+            setAlertConfig({ isOpen: true, message: updateRes.error || 'Failed to update permissions' })
         }
         setSaving(false)
     }
@@ -112,7 +114,7 @@ export default function RolePermissionModal({ role, onClose, onSuccess }: RolePe
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-gray-100">
                     <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                        <Shield className="w-6 h-6 text-indigo-600" />
+                        <Shield className="w-6 h-6 text-gray-900" />
                         {role ? `Manage Permissions: ${role.name}` : 'Create New Role'}
                     </h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
@@ -134,7 +136,7 @@ export default function RolePermissionModal({ role, onClose, onSuccess }: RolePe
                                         required
                                         value={roleName}
                                         onChange={e => setRoleName(e.target.value)}
-                                        className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                                        className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/20 outline-none"
                                         placeholder="e.g. Sales Associate"
                                     />
                                 </div>
@@ -149,14 +151,14 @@ export default function RolePermissionModal({ role, onClose, onSuccess }: RolePe
                                         <label key={perm.id} className={`
                                             flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all
                                             ${selectedPermissions.includes(perm.id)
-                                                ? 'bg-indigo-50 border-indigo-200 shadow-sm'
+                                                ? 'bg-gray-50 border-gray-200 shadow-sm'
                                                 : 'bg-white border-gray-100 hover:border-gray-200'}
                                         `}>
                                             <input
                                                 type="checkbox"
                                                 checked={selectedPermissions.includes(perm.id)}
                                                 onChange={() => togglePermission(perm.id)}
-                                                className="mt-1 w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                className="mt-1 w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
                                             />
                                             <div>
                                                 <div className="text-sm font-medium text-gray-900 capitalize">
@@ -182,12 +184,33 @@ export default function RolePermissionModal({ role, onClose, onSuccess }: RolePe
                         type="submit"
                         form="role-form"
                         disabled={saving}
-                        className="px-5 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-lg shadow-indigo-200 flex items-center gap-2"
+                        className="px-5 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-black shadow-lg shadow-gray-200 flex items-center gap-2"
                     >
                         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Save Changes</>}
                     </button>
                 </div>
             </div>
+
+            <Dialog
+                isOpen={alertConfig.isOpen}
+                onClose={() => setAlertConfig({ ...alertConfig, isOpen: false })}
+                title="Notification"
+            >
+                <div className="mt-2">
+                    <p className="text-sm text-gray-500">
+                        {alertConfig.message}
+                    </p>
+                </div>
+                <div className="mt-4">
+                    <button
+                        type="button"
+                        className="inline-flex justify-center rounded-md border border-transparent bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-900"
+                        onClick={() => setAlertConfig({ ...alertConfig, isOpen: false })}
+                    >
+                        Close
+                    </button>
+                </div>
+            </Dialog>
         </div>
     )
 }

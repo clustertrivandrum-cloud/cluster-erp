@@ -34,12 +34,12 @@ export default function POSCatalog({
                 <div className="p-4 pb-2">
                     <div className="relative group">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <Search className="h-5 w-5 text-gray-400 group-focus-within:text-indigo-500 transition-colors" />
+                            <Search className="h-5 w-5 text-gray-400 group-focus-within:text-gray-900 transition-colors" />
                         </div>
                         <input
                             type="text"
                             placeholder="Search products or scan barcode..."
-                            className="block w-full pl-11 pr-4 py-3.5 bg-gray-100/50 border-none rounded-2xl text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500/20 focus:bg-white transition-all font-medium text-lg"
+                            className="block w-full pl-11 pr-4 py-3.5 bg-gray-100/50 border-none rounded-2xl text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-gray-900/20 focus:bg-white transition-all font-medium text-lg"
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                             autoFocus
@@ -55,8 +55,8 @@ export default function POSCatalog({
                                 key={cat}
                                 onClick={() => setSelectedCategory(cat)}
                                 className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${selectedCategory === cat
-                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-200 transform scale-105'
-                                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                    ? 'bg-gray-900 text-white border-gray-900 shadow-md shadow-gray-200 transform scale-105'
+                                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                     }`}
                             >
                                 {cat}
@@ -77,7 +77,7 @@ export default function POSCatalog({
                         <p className="text-gray-500">Try adjusting your search or category filter</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 pb-24 md:pb-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 pb-32 lg:pb-4">
                         {products.map(product => {
                             const variant = product.product_variants?.[0]
                             const price = variant?.price || 0
@@ -124,7 +124,7 @@ export default function POSCatalog({
 
                                     {/* Content */}
                                     <div className="flex-1 flex flex-col">
-                                        <h3 className="text-sm font-bold text-gray-900 line-clamp-2 leading-tight mb-2 group-hover:text-indigo-600 transition-colors">
+                                        <h3 className="text-sm font-bold text-gray-900 line-clamp-2 leading-tight mb-2 group-hover:text-gray-700 transition-colors">
                                             {product.title}
                                         </h3>
 
@@ -137,7 +137,7 @@ export default function POSCatalog({
                                                     ₹{price}
                                                 </div>
                                             </div>
-                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
+                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-gray-900 group-hover:text-white transition-all shadow-sm">
                                                 <ShoppingCart className="w-4 h-4" />
                                             </div>
                                         </div>
