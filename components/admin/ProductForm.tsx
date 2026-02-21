@@ -3,60 +3,54 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import ImageUpload from './ImageUpload'
-import { createProduct, getCategories } from '@/lib/actions/product-actions'
-import { Plus, Trash2, X, Image as ImageIcon, ChevronRight, AlertCircle, Save, ArrowLeft } from 'lucide-react'
-import KeyValueEditor from './KeyValueEditor'
-import CustomizationBuilder from './CustomizationBuilder'
+import { createProduct, updateProduct, getCategories } from '@/lib/actions/product-actions'
+import { ArrowLeft, X, Save, Check, ChevronRight } from 'lucide-react'
 import Input from '@/components/ui/Input'
-import Textarea from '@/components/ui/Textarea'
 import Select from '@/components/ui/Select'
-import Label from '@/components/ui/Label'
 import Dialog from '@/components/ui/Dialog'
+import BasicInfoSection from './product/BasicInfoSection'
+import MediaSection from './product/MediaSection'
+import DetailsSection from './product/DetailsSection'
+import VariantsSection from './product/VariantsSection'
+import StatusSection from './product/StatusSection'
+import { Option, Variant } from './product/types'
 
-
-interface Option {
-    id: string
-    name: string
-    values: string[]
-}
-
-interface Variant {
-    id: string
-    title: string
-    options: Record<string, string>
-    price: number
-    sku: string
-    quantity: number
-    images: string[]
-    compare_at_price?: number
-    cost_price?: number
-    barcode?: string
-    weight_value?: number
-    weight_unit?: string
-    dimension_length?: number
-    dimension_width?: number
-    dimension_height?: number
-    dimension_unit?: string
-    reorder_point?: number
-    bin_location?: string
-}
-
-export default function ProductForm() {
+export default function ProductForm({ initialProduct }: { initialProduct?: any }) {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
-    const [images, setImages] = useState<string[]>([])
-    const [options, setOptions] = useState<Option[]>([])
-    const [variants, setVariants] = useState<Variant[]>([])
+    const [currentStep, setCurrentStep] = useState(1)
+    const [images, setImages] = useState<string[]>(initialProduct?.product_media?.map((m: any) => m.media_url) || [])
+    const [options, setOptions] = useState<Option[]>(initialProduct?.product_options || [])
+    const [variants, setVariants] = useState<Variant[]>(() => {
+        if (!initialProduct) return []
+        return initialProduct.product_variants?.map((v: any) => ({
+            ...v,
+            quantity: v.inventory_items?.[0]?.available_quantity || 0,
+            reorder_point: v.inventory_items?.[0]?.reorder_point || 10,
+            bin_location: v.inventory_items?.[0]?.bin_location || '',
+            images: v.variant_media?.map((m: any) => m.media_url) || []
+        })) || []
+    })
     const [categories, setCategories] = useState<{ id: string, name: string, parent_id: string | null }[]>([])
     const [selectedParentId, setSelectedParentId] = useState<string>('')
     const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<string>('')
     const [activeVariantTab, setActiveVariantTab] = useState('general')
-    const [specifications, setSpecifications] = useState<Record<string, string>>({})
-    const [customizationTemplate, setCustomizationTemplate] = useState<Record<string, string | string[]>>({})
+    const [customizationTemplate, setCustomizationTemplate] = useState<Record<string, string | string[]>>(initialProduct?.customization_template || {})
 
     useEffect(() => {
-        getCategories().then(setCategories)
-    }, [])
+        getCategories().then(cats => {
+            setCategories(cats)
+            if (initialProduct?.category_id) {
+                const cat = cats.find(c => c.id === initialProduct.category_id)
+                if (cat?.parent_id) {
+                    setSelectedParentId(cat.parent_id)
+                    setSelectedSubCategoryId(cat.id)
+                } else if (cat) {
+                    setSelectedParentId(cat.id)
+                }
+            }
+        })
+    }, [initialProduct])
 
     // Modal state for editing variant images
     const [editingVariantId, setEditingVariantId] = useState<string | null>(null)
@@ -182,7 +176,9 @@ export default function ProductForm() {
         formData.append('variants', JSON.stringify(variants))
         formData.append('images', JSON.stringify(images))
 
-        const result = await createProduct(formData)
+        const result = initialProduct
+            ? await updateProduct(initialProduct.id, formData)
+            : await createProduct(formData)
 
         if (result?.error) {
             setAlertMessage(result.error)
@@ -192,11 +188,34 @@ export default function ProductForm() {
         setLoading(false)
     }
 
+    const steps = [
+        { id: 1, name: 'Basic Info' },
+        { id: 2, name: 'Media' },
+        { id: 3, name: 'Details' },
+        { id: 4, name: 'Variants' },
+        { id: 5, name: 'Pricing & Stock' },
+        { id: 6, name: 'Publish' }
+    ]
+
+    const nextStep = () => {
+        if (currentStep < steps.length) {
+            setCurrentStep(prev => prev + 1)
+            window.scrollTo(0, 0)
+        }
+    }
+
+    const prevStep = () => {
+        if (currentStep > 1) {
+            setCurrentStep(prev => prev - 1)
+            window.scrollTo(0, 0)
+        }
+    }
+
     return (
-        <div className="max-w-5xl mx-auto pb-10">
+        <div className="max-w-4xl mx-auto pb-10">
             <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center space-x-4">
-                    <button onClick={() => router.back()} className="p-2 -ml-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
+                    <button type="button" onClick={() => router.back()} className="p-2 -ml-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
@@ -206,520 +225,103 @@ export default function ProductForm() {
                 </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left Column - Main Details */}
-                <div className="lg:col-span-2 space-y-8">
-
-                    {/* Basic Info Card */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                        <div className="px-4 py-3 md:px-6 md:py-4 border-b border-gray-100 bg-gray-50/50">
-                            <h3 className="text-base font-semibold text-gray-900">Product Information</h3>
-                        </div>
-                        <div className="p-4 md:p-6 space-y-6">
-                            <div className="space-y-4">
-                                <Input
-                                    label="Title"
-                                    required
-                                    name="title"
-                                    type="text"
-                                    placeholder="e.g. Premium Cotton T-Shirt"
-                                />
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <Input
-                                        label="Slug (URL Handle)"
-                                        required
-                                        name="slug"
-                                        type="text"
-                                        placeholder="premium-cotton-t-shirt"
-                                    />
-
+            {/* Stepper */}
+            <div className="mb-10 px-4 mt-6">
+                <nav aria-label="Progress">
+                    <ol role="list" className="flex items-center w-full shadow-sm bg-white rounded-lg px-6 py-10 sm:px-10 border border-gray-100 relative z-0">
+                        {steps.map((step, stepIdx) => (
+                            <li key={step.name} className={`relative flex items-center ${stepIdx !== steps.length - 1 ? 'flex-1' : ''}`}>
+                                <div className="flex flex-col items-center relative z-10 shrink-0">
+                                    <button
+                                        type="button"
+                                        onClick={() => setCurrentStep(step.id)}
+                                        className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full border-2 bg-white transition-colors ${currentStep > step.id ? 'border-gray-900 bg-gray-900' :
+                                            currentStep === step.id ? 'border-gray-900' : 'border-gray-300'
+                                            }`}
+                                    >
+                                        {currentStep > step.id ? (
+                                            <Check className="h-4 w-4 text-white" aria-hidden="true" />
+                                        ) : (
+                                            <span className={`h-2.5 w-2.5 rounded-full ${currentStep === step.id ? 'bg-gray-900' : 'bg-transparent'}`} aria-hidden="true" />
+                                        )}
+                                    </button>
+                                    <span className={`mt-4 text-[10px] sm:text-[11px] font-semibold uppercase tracking-wide text-center absolute top-8 left-1/2 -translate-x-1/2 whitespace-nowrap ${currentStep >= step.id ? 'text-gray-900' : 'text-gray-400'} ${currentStep === step.id ? 'block' : 'hidden sm:block'}`}>
+                                        {step.name}
+                                    </span>
                                 </div>
-                                <Textarea
-                                    label="Description"
-                                    name="description"
-                                    rows={4}
-                                    placeholder="Describe your product..."
-                                />
-                            </div>
-                        </div>
-                    </div>
+                                {stepIdx !== steps.length - 1 && (
+                                    <div className={`flex-1 h-[3px] mx-1 sm:mx-3 ${currentStep > step.id ? 'bg-gray-900' : 'bg-gray-200'}`} />
+                                )}
+                            </li>
+                        ))}
+                    </ol>
+                </nav>
+            </div>
 
-                    {/* Media Card */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                        <div className="px-4 py-3 md:px-6 md:py-4 border-b border-gray-100 bg-gray-50/50">
-                            <h3 className="text-base font-semibold text-gray-900">Media</h3>
-                        </div>
-                        <div className="p-4 md:p-6">
-                            <ImageUpload
-                                value={images}
-                                onChange={(url) => setImages((prev) => [...prev, url])}
-                                onRemove={(url) => setImages((prev) => prev.filter((current) => current !== url))}
-                            />
-                            <p className="text-sm text-gray-500 mt-2">Upload general product images here. Variant-specific images can be added in the variants section.</p>
-                        </div>
-                    </div>
+            <form onSubmit={handleSubmit} className="space-y-8 mt-[4.5rem]">
 
-                    {/* Product Details (ERP/Jewellery) */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                        <div className="px-4 py-3 md:px-6 md:py-4 border-b border-gray-100 bg-gray-50/50">
-                            <h3 className="text-base font-semibold text-gray-900">Product Details</h3>
-                        </div>
-                        <div className="p-4 md:p-6 space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <Input
-                                    label="Brand"
-                                    name="brand"
-                                    type="text"
-                                    placeholder="e.g. Tanishq, Gucci"
-                                />
-                                <Input
-                                    label="Material"
-                                    name="material"
-                                    type="text"
-                                    placeholder="e.g. Gold 22k, Cotton"
-                                />
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <Input
-                                    placeholder="e.g. India"
-                                />
-                                <Input
-                                    label="Collection"
-                                    name="collection"
-                                    type="text"
-                                    placeholder="e.g. Bridal 2024"
-                                />
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <Input
-                                    label="Season"
-                                    name="season"
-                                    type="text"
-                                    placeholder="e.g. SS24, FW24"
-                                />
-                                <Input
-                                    label="Warranty Period"
-                                    name="warranty_period"
-                                    type="text"
-                                    placeholder="e.g. 1 Year, Lifetime"
-                                />
-                            </div>
-                            <Textarea
-                                label="Care Instructions"
-                                name="care_instructions"
-                                rows={3}
-                                placeholder="e.g. Keep away from water, Dry clean only..."
-                            />
+                {/* Step 1: Basic Info */}
+                <div className={currentStep === 1 ? 'block' : 'hidden'}>
+                    <BasicInfoSection initialData={initialProduct} />
+                </div>
 
-                            <div>
-                                <Label>Features (Bullet Points)</Label>
-                                <p className="text-xs text-gray-500 mb-2">Enter each feature on a new line.</p>
-                                <Textarea
-                                    name="features"
-                                    rows={5}
-                                    placeholder="- Handcrafted&#10;- Hypoallergenic&#10;- Certified Gemstones"
-                                />
-                            </div>
+                {/* Step 2: Media */}
+                <div className={currentStep === 2 ? 'block' : 'hidden'}>
+                    <MediaSection images={images} setImages={setImages} />
+                </div>
 
-                            <div>
-                                <Label>Specifications</Label>
-                                <p className="text-xs text-gray-500 mb-2">Technical specs like Purity or Gemstone.</p>
-                                <KeyValueEditor
-                                    initialValue={specifications}
-                                    onChange={setSpecifications}
-                                />
-                                <input
-                                    type="hidden"
-                                    name="specifications"
-                                    value={JSON.stringify(specifications)}
-                                />
-                            </div>
+                {/* Step 3: Details */}
+                <div className={currentStep === 3 ? 'block' : 'hidden'}>
+                    <DetailsSection customizationTemplate={customizationTemplate} setCustomizationTemplate={setCustomizationTemplate} initialData={initialProduct} />
+                </div>
 
-                            <div className="pt-4 border-t border-gray-100">
-                                <div className="flex items-center space-x-3 mb-4">
-                                    <input
-                                        type="checkbox"
-                                        id="is_customizable"
-                                        name="is_customizable"
-                                        className="h-4 w-4 text-gray-900 focus:ring-gray-900 border-gray-300 rounded"
-                                    />
-                                    <label htmlFor="is_customizable" className="text-sm font-medium text-gray-700">
-                                        Is Customizable? (e.g. Engraving, Sizing)
-                                    </label>
-                                </div>
+                {/* Step 4: Variants */}
+                <div className={currentStep === 4 ? 'block' : 'hidden'}>
+                    <VariantsSection
+                        options={options}
+                        variants={variants}
+                        addOption={addOption}
+                        removeOption={removeOption}
+                        updateOptionName={updateOptionName}
+                        addOptionValue={addOptionValue}
+                        removeOptionValue={removeOptionValue}
+                        updateVariant={updateVariant}
+                        setEditingVariantId={setEditingVariantId}
+                    />
+                </div>
 
-                                <div>
-                                    <Label>Customization Options</Label>
-                                    <p className="text-xs text-gray-500 mb-2">Define options for customers (e.g. Ring Size, Engraving).</p>
-                                    <CustomizationBuilder
-                                        initialValue={customizationTemplate}
-                                        onChange={setCustomizationTemplate}
-                                    />
-                                    <input
-                                        type="hidden"
-                                        name="customization_template"
-                                        value={JSON.stringify(customizationTemplate)}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <Select
-                                    label="Shipping Class"
-                                    name="shipping_class"
-                                >
-                                    <option value="standard">Standard Shipping</option>
-                                    <option value="express">Express / Air</option>
-                                    <option value="insured-high-value">Insured (High Value)</option>
-                                </Select>
-                                <Textarea
-                                    label="Return Policy"
-                                    name="return_policy"
-                                    rows={1}
-                                    placeholder="e.g. No Returns for Custom Items"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Variants Card */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                        <div className="px-4 py-3 md:px-6 md:py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-                            <h3 className="text-base font-semibold text-gray-900">Variants</h3>
+                {/* Step 5: Pricing & Inventory */}
+                <div className={currentStep === 5 ? 'block' : 'hidden'}>
+                    {options.length > 0 ? (
+                        <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-8 text-center">
+                            <h3 className="text-lg font-medium text-blue-900 mb-2">Pricing & Inventory Handled by Variants</h3>
+                            <p className="text-sm text-blue-700">Because this product has multiple variants (e.g. Size, Color), you manage the individual pricing, SKU, and quantities for each variant in the previous step.</p>
                             <button
                                 type="button"
-                                onClick={addOption}
-                                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-gray-900 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors"
+                                onClick={() => setCurrentStep(4)}
+                                className="mt-6 inline-flex justify-center items-center py-2 px-4 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors"
                             >
-                                <Plus className="w-4 h-4 mr-1" />
-                                Add Option
+                                <ArrowLeft className="w-4 h-4 mr-2" />
+                                Go Back to Variants
                             </button>
                         </div>
-                        <div className="p-4 md:p-6 space-y-6">
-
-                            {/* Options List */}
-                            {options.length > 0 ? (
-                                <div className="space-y-4">
-                                    {options.map((option, index) => (
-                                        <div key={option.id} className="relative group bg-white border border-gray-200 rounded-lg p-5 hover:border-gray-400 transition-colors">
-                                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeOption(index)}
-                                                    className="text-gray-400 hover:text-red-600 p-1"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                                                <div className="md:col-span-4">
-                                                    <Input
-                                                        label="Option Name"
-                                                        type="text"
-                                                        value={option.name}
-                                                        onChange={(e) => updateOptionName(index, e.target.value)}
-                                                        placeholder="e.g. Size, Color"
-                                                    />
-                                                </div>
-                                                <div className="md:col-span-8">
-                                                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Option Values</label>
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                        {option.values.map((val, vIndex) => (
-                                                            <span key={vIndex} className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-900 border border-gray-200">
-                                                                {val}
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => removeOptionValue(index, vIndex)}
-                                                                    className="ml-1.5 text-gray-400 hover:text-gray-900"
-                                                                >
-                                                                    <X className="w-3 h-3" />
-                                                                </button>
-                                                            </span>
-                                                        ))}
-                                                        <div className="relative">
-                                                            <input
-                                                                type="text"
-                                                                placeholder="Type value & hit Enter..."
-                                                                onKeyDown={(e) => {
-                                                                    if (e.key === 'Enter') {
-                                                                        e.preventDefault()
-                                                                        addOptionValue(index, e.currentTarget.value)
-                                                                        e.currentTarget.value = ''
-                                                                    }
-                                                                }}
-                                                                className="block w-40 rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-xs py-1.5"
-                                                            />
-                                                            <span className="absolute right-2 top-1.5 text-xs text-gray-400 pointer-events-none">↵</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                    ) : (
+                        <div className="space-y-8">
+                            {/* Pricing Card */}
+                            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                                    <h3 className="text-base font-semibold text-gray-900">Pricing</h3>
                                 </div>
-                            ) : (
-                                <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
-                                    <p className="text-sm text-gray-500">No options added. Add options like Size or Color to generate variants.</p>
-                                </div>
-                            )}
-
-                            {/* Generated Variants Table */}
-                            {variants.length > 0 && (
-                                <div className="mt-8">
-                                    <h4 className="text-sm font-medium text-gray-900 mb-4 flex items-center">
-                                        <ChevronRight className="w-4 h-4 text-gray-900 mr-1" />
-                                        Preview & Edit Variants
-                                    </h4>
-                                    <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
-                                        <div className="overflow-x-auto">
-                                            <table className="min-w-full divide-y divide-gray-200">
-                                                <thead className="bg-gray-50">
-                                                    <tr>
-                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider pl-6">Variant</th>
-                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Price</th>
-                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">SKU</th>
-                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Qty</th>
-                                                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Images</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="bg-white divide-y divide-gray-200">
-                                                    {variants.map((variant, index) => (
-                                                        <tr key={index} className="hover:bg-gray-50/50 transition-colors">
-                                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 pl-6 border-r border-transparent">
-                                                                {variant.title}
-                                                            </td>
-                                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                                                                <div className="relative rounded-md shadow-sm">
-                                                                    <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                                                                        <span className="text-gray-500 sm:text-xs">₹</span>
-                                                                    </div>
-                                                                    <input
-                                                                        type="number"
-                                                                        step="0.01"
-                                                                        value={variant.price}
-                                                                        onChange={(e) => updateVariant(index, 'price', parseFloat(e.target.value))}
-                                                                        className="block w-full pl-6 rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900 sm:text-sm py-1"
-                                                                    />
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                                                                <input
-                                                                    type="text"
-                                                                    value={variant.sku}
-                                                                    onChange={(e) => updateVariant(index, 'sku', e.target.value)}
-                                                                    className="block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900 sm:text-sm py-1"
-                                                                />
-                                                            </td>
-                                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                                                                <input
-                                                                    type="number"
-                                                                    value={variant.quantity}
-                                                                    onChange={(e) => updateVariant(index, 'quantity', parseInt(e.target.value))}
-                                                                    className="block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900 sm:text-sm py-1"
-                                                                />
-                                                            </td>
-                                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setEditingVariantId(variant.id)}
-                                                                    className={`inline-flex items-center px-2.5 py-1.5 border text-xs font-medium rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 ${variant.images.length > 0
-                                                                        ? 'border-transparent text-gray-900 bg-gray-100 hover:bg-gray-200'
-                                                                        : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
-                                                                        }`}
-                                                                >
-                                                                    <ImageIcon className="w-3.5 h-3.5 mr-1.5" />
-                                                                    {variant.images.length > 0 ? `${variant.images.length}` : 'Add'}
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setEditingVariantId(variant.id)}
-                                                                    className="ml-2 text-gray-900 hover:text-black text-xs font-medium"
-                                                                >
-                                                                    Edit Details
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* SEO Card */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                            <h3 className="text-base font-semibold text-gray-900">Search Engine Optimization</h3>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <Input
-                                label="SEO Title"
-                                name="seo_title"
-                                type="text"
-                                helperText="Optimal length is 50-60 characters."
-                            />
-                            <Textarea
-                                label="SEO Description"
-                                name="seo_description"
-                                rows={3}
-                                helperText="Optimal length is 150-160 characters."
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Right Column - Organization & Status */}
-                <div className="lg:col-span-1 space-y-8">
-
-                    {/* Status Card */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden sticky top-8">
-                        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                            <h3 className="text-base font-semibold text-gray-900">Organization</h3>
-                        </div>
-                        <div className="p-6 space-y-6">
-                            <Select
-                                label="Status"
-                                name="status"
-                            >
-                                <option value="draft">Draft</option>
-                                <option value="active">Active</option>
-                                <option value="archived">Archived</option>
-                            </Select>
-
-
-
-                            <div>
-                                <Label>Category</Label>
-                                <div className="space-y-3">
-                                    <Select
-                                        value={selectedParentId}
-                                        onChange={(e) => {
-                                            setSelectedParentId(e.target.value)
-                                            setSelectedSubCategoryId('')
-                                        }}
-                                    >
-                                        <option value="">Select Main Category</option>
-                                        {categories.filter(c => !c.parent_id).map(c => (
-                                            <option key={c.id} value={c.id}>{c.name}</option>
-                                        ))}
-                                    </Select>
-
-                                    {/* Subcategory Select - Show only if parent selected */}
-                                    {selectedParentId && (
-                                        <Select
-                                            value={selectedSubCategoryId}
-                                            onChange={(e) => setSelectedSubCategoryId(e.target.value)}
-                                        >
-                                            <option value="">Select Subcategory (Optional)</option>
-                                            {categories.filter(c => c.parent_id === selectedParentId).map(c => (
-                                                <option key={c.id} value={c.id}>{c.name}</option>
-                                            ))}
-                                        </Select>
-                                    )}
-
-                                    {/* Hidden input for form submission - prioritize subcategory if selected */}
-                                    <input
-                                        type="hidden"
-                                        name="category_id"
-                                        value={selectedSubCategoryId || selectedParentId}
-                                    />
-                                </div>
-                            </div>
-
-                            <Select
-                                label="Gender / Target Audience"
-                                name="gender"
-                            >
-                                <option value="">Select Gender</option>
-                                <option value="Women">Women</option>
-                                <option value="Men">Men</option>
-                                <option value="Kids">Kids</option>
-                                <option value="Unisex">Unisex</option>
-                            </Select>
-
-                            <Input
-                                label="HSN Code"
-                                name="hs_code"
-                                type="text"
-                                placeholder="e.g. 7113"
-                                helperText="Harmonized System of Nomenclature for GST."
-                            />
-                            <Input
-                                label="Tags"
-                                name="tags"
-                                type="text"
-                                placeholder="Summer, Sale, New"
-                                helperText="Comma separated."
-                            />
-
-                            <div className="flex items-center space-x-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                                <input
-                                    type="checkbox"
-                                    id="is_featured"
-                                    name="is_featured"
-                                    className="h-4 w-4 text-gray-900 focus:ring-gray-900 border-gray-300 rounded"
-                                />
-                                <label htmlFor="is_featured" className="text-sm font-medium text-gray-700">
-                                    Feature this product
-                                </label>
-                            </div>
-
-                            {/* Separator */}
-                            <div className="border-t border-gray-100"></div>
-
-                            {/* If Simple Product (No Variants) - Show Base Pricing/Inventory Here or Main Column?
-                                Better to keep consistent. If no variants, show fields in main column or here.
-                                Let's put them here for simple access in sidebar or creating a separate card if lengthy.
-                                Actually, for better UX, let's put them in a separate card in the main column if strictly needed, 
-                                but fitting them in the sidebar is tight. Let's move them to a main column card if no variants.
-                            */}
-                        </div>
-                        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-gray-900 hover:bg-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-                            >
-                                {loading ? (
-                                    <>
-                                        <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        Saving...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Save className="w-4 h-4 mr-2" />
-                                        Save Product
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Simple Product Support (Pricing/Inventory) - Show if no variants */}
-                {options.length === 0 && (
-                    <div className="lg:col-span-2">
-                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                                <h3 className="text-base font-semibold text-gray-900">Pricing & Inventory</h3>
-                            </div>
-                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-4">
-                                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wide">Pricing</h4>
-                                    <div className="grid grid-cols-2 gap-4">
+                                <div className="p-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <Input
-                                            label="Price"
+                                            label="Price *"
                                             required
                                             name="price"
                                             type="number"
                                             step="0.01"
                                             placeholder="0.00"
+                                            defaultValue={initialProduct?.product_variants?.[0]?.price}
                                         />
                                         <Input
                                             label="Compare at"
@@ -727,8 +329,9 @@ export default function ProductForm() {
                                             type="number"
                                             step="0.01"
                                             placeholder="0.00"
+                                            defaultValue={initialProduct?.product_variants?.[0]?.compare_at_price}
                                         />
-                                        <div className="col-span-2">
+                                        <div className="md:col-span-2">
                                             <Input
                                                 label="Cost per item"
                                                 name="cost_price"
@@ -736,37 +339,50 @@ export default function ProductForm() {
                                                 step="0.01"
                                                 placeholder="0.00"
                                                 helperText="Customers won’t see this."
+                                                defaultValue={initialProduct?.product_variants?.[0]?.cost_price}
                                             />
                                         </div>
                                     </div>
                                 </div>
-                                <div className="space-y-4">
-                                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wide">Inventory</h4>
-                                    <div className="space-y-4">
-                                        <Input
-                                            label="SKU (Stock Keeping Unit)"
-                                            name="sku"
-                                            type="text"
-                                            placeholder="Auto-generated if blank"
-                                            helperText="Leave blank to auto-generate (Starts with CF-)."
-                                        />
-                                        <Input
-                                            label="Barcode (ISBN, UPC, GTIN, etc.)"
-                                            name="barcode"
-                                            type="text"
-                                        />
-                                        <div className="grid grid-cols-3 gap-4">
+                            </div>
+
+                            {/* Inventory Card */}
+                            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                                    <h3 className="text-base font-semibold text-gray-900">Inventory</h3>
+                                </div>
+                                <div className="p-6">
+                                    <div className="space-y-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <Input
-                                                label="Quantity"
+                                                label="SKU (Stock Keeping Unit) *"
+                                                required
+                                                name="sku"
+                                                type="text"
+                                                placeholder="Auto-generated if blank"
+                                                helperText="Leave blank to auto-generate (Starts with CF-)."
+                                                defaultValue={initialProduct?.product_variants?.[0]?.sku}
+                                            />
+                                            <Input
+                                                label="Barcode (ISBN, UPC, GTIN, etc.)"
+                                                name="barcode"
+                                                type="text"
+                                                defaultValue={initialProduct?.product_variants?.[0]?.barcode}
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <Input
+                                                label="Quantity *"
+                                                required
                                                 name="quantity"
                                                 type="number"
-                                                defaultValue={0}
+                                                defaultValue={initialProduct?.product_variants?.[0]?.inventory_items?.[0]?.available_quantity || 0}
                                             />
                                             <Input
                                                 label="Reorder Point"
                                                 name="reorder_point"
                                                 type="number"
-                                                defaultValue={10}
+                                                defaultValue={initialProduct?.product_variants?.[0]?.inventory_items?.[0]?.reorder_point || 10}
                                                 helperText="Low stock alert level"
                                             />
                                             <Input
@@ -774,15 +390,99 @@ export default function ProductForm() {
                                                 name="bin_location"
                                                 type="text"
                                                 placeholder="e.g. A-12"
+                                                defaultValue={initialProduct?.product_variants?.[0]?.inventory_items?.[0]?.bin_location}
                                             />
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
 
+                {/* Step 6: Publish / Organization */}
+                <div className={currentStep === 6 ? 'block' : 'hidden'}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                        <StatusSection
+                            categories={categories}
+                            selectedParentId={selectedParentId}
+                            setSelectedParentId={setSelectedParentId}
+                            selectedSubCategoryId={selectedSubCategoryId}
+                            setSelectedSubCategoryId={setSelectedSubCategoryId}
+                            loading={loading}
+                            initialData={initialProduct}
+                        />
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden sticky top-8">
+                            <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                                <h3 className="text-base font-semibold text-gray-900">Search Engine Optimization</h3>
+                            </div>
+                            <div className="p-6 space-y-4">
+                                <Input
+                                    label="SEO Title"
+                                    name="seo_title"
+                                    type="text"
+                                    helperText="Optimal length is 50-60 characters."
+                                    defaultValue={initialProduct?.seo_title}
+                                />
+                                <div className="space-y-1">
+                                    <label className="block text-sm font-medium text-gray-700">SEO Description</label>
+                                    <textarea
+                                        name="seo_description"
+                                        rows={3}
+                                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm p-3"
+                                        placeholder="Optimal length is 150-160 characters."
+                                        defaultValue={initialProduct?.seo_description}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Navigation Buttons */}
+                <div className="pt-8 flex justify-between items-center bg-transparent mt-10 border-t border-gray-200">
+                    <button
+                        type="button"
+                        onClick={prevStep}
+                        disabled={currentStep === 1}
+                        className={`inline-flex justify-center items-center py-2.5 px-6 border shadow-sm text-sm font-medium rounded-lg transition-all ${currentStep === 1 ? 'opacity-0 pointer-events-none' : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900'}`}
+                    >
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        Back
+                    </button>
+
+                    {currentStep < steps.length ? (
+                        <button
+                            type="button"
+                            onClick={nextStep}
+                            className="inline-flex justify-center items-center py-2.5 px-6 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-gray-900 hover:bg-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-all"
+                        >
+                            Next
+                            <ChevronRight className="w-4 h-4 ml-2" />
+                        </button>
+                    ) : (
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="inline-flex justify-center items-center py-2.5 px-6 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-[#0f9d58] hover:bg-[#0b8043] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0f9d58] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                        >
+                            {loading ? (
+                                <>
+                                    <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Publishing...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="w-4 h-4 mr-2" />
+                                    {initialProduct ? 'Save Changes' : 'Publish Product'}
+                                </>
+                            )}
+                        </button>
+                    )}
+                </div>
             </form>
 
             {/* Variant Image Modal */}

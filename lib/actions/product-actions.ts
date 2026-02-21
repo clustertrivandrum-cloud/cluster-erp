@@ -60,11 +60,9 @@ export async function createProduct(formData: FormData) {
         care_instructions: formData.get('care_instructions') as string,
         is_featured: formData.get('is_featured') === 'on',
         features: formData.get('features') ? (formData.get('features') as string).split('\n').filter(f => f.trim() !== '') : [],
-        specifications: formData.get('specifications') ? JSON.parse(formData.get('specifications') as string) : {},
         // Jewellery & Clothing Specifics
         gender: formData.get('gender') as string,
         collection: formData.get('collection') as string,
-        season: formData.get('season') as string,
         is_customizable: formData.get('is_customizable') === 'on',
         customization_template: formData.get('customization_template') ? JSON.parse(formData.get('customization_template') as string) : {},
         warranty_period: formData.get('warranty_period') as string,
@@ -332,4 +330,223 @@ export async function searchVariants(query: string) {
     })
 
     return results
+}
+
+export async function getProductById(id: string) {
+    const supabase = await createClient()
+    const { data: product, error } = await supabase
+        .from('products')
+        .select(`
+            *,
+            product_media (*),
+            product_options (*),
+            product_variants (
+                *,
+                inventory_items (*)
+            )
+        `)
+        .eq('id', id)
+        .single()
+
+    if (error) {
+        console.error('Error fetching product:', error)
+        return null
+    }
+
+    if (product.product_options) {
+        product.product_options.sort((a: any, b: any) => a.position - b.position)
+    }
+    if (product.product_media) {
+        product.product_media.sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
+    }
+
+    return product
+}
+
+export async function updateProduct(id: string, formData: FormData) {
+    const supabase = await createClient()
+
+    const product = {
+        title: formData.get('title') as string,
+        slug: formData.get('slug') as string,
+        description: formData.get('description') as string,
+        category_id: formData.get('category_id') as string || null,
+        tags: formData.get('tags') ? (formData.get('tags') as string).split(',').map(t => t.trim()) : [],
+        vendor: formData.get('vendor') as string,
+        status: formData.get('status') as string || 'draft',
+        seo_title: formData.get('seo_title') as string,
+        seo_description: formData.get('seo_description') as string,
+        brand: formData.get('brand') as string,
+        origin_country: formData.get('origin_country') as string,
+        material: formData.get('material') as string,
+        care_instructions: formData.get('care_instructions') as string,
+        is_featured: formData.get('is_featured') === 'on',
+        features: formData.get('features') ? (formData.get('features') as string).split('\n').filter(f => f.trim() !== '') : [],
+        gender: formData.get('gender') as string,
+        collection: formData.get('collection') as string,
+        is_customizable: formData.get('is_customizable') === 'on',
+        customization_template: formData.get('customization_template') ? JSON.parse(formData.get('customization_template') as string) : {},
+        warranty_period: formData.get('warranty_period') as string,
+        shipping_class: formData.get('shipping_class') as string || 'standard',
+        return_policy: formData.get('return_policy') as string,
+        updated_at: new Date().toISOString()
+    }
+
+    const { error } = await supabase.from('products').update(product).eq('id', id)
+    if (error) return { error: error.message }
+
+    const optionsJSON = formData.get('options') as string
+    const variantsJSON = formData.get('variants') as string
+    let options: any[] = []
+    let variants: any[] = []
+
+    try {
+        if (optionsJSON) options = JSON.parse(optionsJSON)
+        if (variantsJSON) variants = JSON.parse(variantsJSON)
+    } catch (e) {
+        console.error("Error parsing options/variants JSON", e)
+    }
+
+    if (options.length > 0) {
+        const optionInserts = options.map((opt: any, index: number) => ({
+            id: opt.id,
+            product_id: id,
+            name: opt.name,
+            position: index + 1,
+            values: opt.values
+        }))
+
+        // Delete removed options
+        const optionIds = options.map(o => o.id).filter(Boolean)
+        if (optionIds.length > 0) {
+            await supabase.from('product_options').delete().eq('product_id', id).not('id', 'in', `(${optionIds.join(',')})`)
+        } else {
+            await supabase.from('product_options').delete().eq('product_id', id)
+        }
+        await supabase.from('product_options').upsert(optionInserts)
+
+        // Delete removed variants
+        const variantIds = variants.map(v => v.id).filter(Boolean)
+        if (variantIds.length > 0) {
+            await supabase.from('product_variants').delete().eq('product_id', id).not('id', 'in', `(${variantIds.join(',')})`)
+        } else {
+            await supabase.from('product_variants').delete().eq('product_id', id)
+        }
+
+        for (const v of variants) {
+            const variantUpsert = {
+                id: v.id,
+                product_id: id,
+                title: v.title,
+                sku: v.sku || null,
+                barcode: v.barcode || null,
+                price: parseFloat(v.price) || 0,
+                compare_at_price: v.compare_at_price ? parseFloat(v.compare_at_price) : null,
+                cost_price: v.cost_price ? parseFloat(v.cost_price) : null,
+                options: v.options,
+                weight_value: v.weight_value ? parseFloat(v.weight_value) : null,
+                weight_unit: v.weight_unit || 'g',
+            }
+
+            const { data: upsertedVariant, error: variantError } = await supabase
+                .from('product_variants')
+                .upsert(variantUpsert)
+                .select()
+                .single()
+
+            if (variantError || !upsertedVariant) continue
+
+            if (v.quantity !== undefined && v.quantity !== null) {
+                const { data: location } = await supabase.from('locations').select('id').limit(1).single()
+                if (location) {
+                    // Check if inventory exists
+                    const { data: existingInv } = await supabase.from('inventory_items').select('id').eq('variant_id', upsertedVariant.id).eq('location_id', location.id).single()
+
+                    if (existingInv) {
+                        await supabase.from('inventory_items').update({
+                            available_quantity: v.quantity,
+                            reorder_point: v.reorder_point || 10,
+                            bin_location: v.bin_location || null
+                        }).eq('id', existingInv.id)
+                    } else {
+                        await supabase.from('inventory_items').insert({
+                            variant_id: upsertedVariant.id,
+                            location_id: location.id,
+                            available_quantity: v.quantity,
+                            reorder_point: v.reorder_point || 10,
+                            bin_location: v.bin_location || null
+                        })
+                    }
+                }
+            }
+        }
+    } else {
+        // Simple product
+        await supabase.from('product_options').delete().eq('product_id', id)
+        // Keep the first variant, delete the rest
+        const { data: existingVariants } = await supabase.from('product_variants').select('id').eq('product_id', id)
+        let mainVariantId = existingVariants && existingVariants.length > 0 ? existingVariants[0].id : crypto.randomUUID()
+
+        if (existingVariants && existingVariants.length > 1) {
+            const idsToDelete = existingVariants.slice(1).map(ev => ev.id)
+            await supabase.from('product_variants').delete().in('id', idsToDelete)
+        }
+
+        const variant = {
+            id: mainVariantId,
+            product_id: id,
+            sku: (formData.get('sku') as string) || undefined,
+            barcode: (formData.get('barcode') as string) || null,
+            price: parseFloat(formData.get('price') as string) || 0,
+            compare_at_price: formData.get('compare_at_price') ? parseFloat(formData.get('compare_at_price') as string) : null,
+            cost_price: formData.get('cost_price') ? parseFloat(formData.get('cost_price') as string) : null,
+            is_active: product.status === 'active'
+        }
+
+        const { data: upsertedVariant, error: variantError } = await supabase.from('product_variants').upsert(variant).select().single()
+
+        if (!variantError && upsertedVariant) {
+            const quantity = parseInt(formData.get('quantity') as string) || 0
+            const reorderPoint = parseInt(formData.get('reorder_point') as string) || 10
+            const binLocation = formData.get('bin_location') as string
+            const { data: location } = await supabase.from('locations').select('id').limit(1).single()
+
+            if (location) {
+                const { data: existingInv } = await supabase.from('inventory_items').select('id').eq('variant_id', upsertedVariant.id).eq('location_id', location.id).single()
+                if (existingInv) {
+                    await supabase.from('inventory_items').update({
+                        available_quantity: quantity, reorder_point: reorderPoint, bin_location: binLocation || null
+                    }).eq('id', existingInv.id)
+                } else {
+                    await supabase.from('inventory_items').insert({
+                        variant_id: upsertedVariant.id, location_id: location.id, available_quantity: quantity, reorder_point: reorderPoint, bin_location: binLocation || null
+                    })
+                }
+            }
+        }
+    }
+
+    // Handle Images
+    const imagesJSON = formData.get('images') as string
+    if (imagesJSON) {
+        try {
+            const images = JSON.parse(imagesJSON) as string[]
+            await supabase.from('product_media').delete().eq('product_id', id)
+            if (images.length > 0) {
+                const mediaInserts = images.map((url, index) => ({
+                    product_id: id,
+                    media_url: url,
+                    position: index + 1,
+                    media_type: 'image'
+                }))
+                await supabase.from('product_media').insert(mediaInserts)
+            }
+        } catch (e) {
+            console.error('Error parsing images JSON:', e)
+        }
+    }
+
+    revalidatePath('/admin/products')
+    revalidatePath(`/admin/products/${id}`)
+    redirect('/admin/products')
 }

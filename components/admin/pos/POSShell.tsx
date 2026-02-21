@@ -105,9 +105,11 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
     const grandTotal = taxableAmount + taxAmount
 
 
-    // Checkout Handler
     const handleCheckoutSubmit = async () => {
         setIsProcessing(true)
+
+        // Open window before await to prevent popup blocker
+        const invoiceWindow = window.open('about:blank', '_blank')
 
         let customerId = selectedCustomer?.id
 
@@ -141,7 +143,11 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
         const res = await createOrder(orderInput as any) // TypeScript cast for now
 
         if (res.success) {
-            window.open(`/admin/orders/${res.orderId}/invoice`, '_blank')
+            if (invoiceWindow) {
+                invoiceWindow.location.href = `/admin/orders/${res.orderId}/invoice`
+            } else {
+                window.open(`/admin/orders/${res.orderId}/invoice`, '_blank') // Fallback 
+            }
             setCart([])
             setAmountTendered('')
             setNotes('')
@@ -149,6 +155,7 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
             setDiscountValue(0)
             setIsMobileCartOpen(false)
         } else {
+            if (invoiceWindow) invoiceWindow.close()
             alert("Error: " + res.error)
         }
         setIsProcessing(false)

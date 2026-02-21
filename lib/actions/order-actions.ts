@@ -78,12 +78,10 @@ export async function getOrder(id: string) {
         .from('orders')
         .select(`
             *,
-            customers (*),
             order_items (
                 *,
                 product_variants (
                     id, 
-                    title, 
                     sku, 
                     products (title, product_media(media_url))
                 )
@@ -118,18 +116,22 @@ export async function createOrder(input: CreateOrderInput) {
     const supabase = await createClient()
 
     // 1. Create Order
+    // NOTE: POS fields (customer_id, discount_amount, tax_amount, payment_method, order_type) 
+    // Mapping POS frontend data to correct DB columns based on actual schema
     const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
-            customer_id: input.customer_id,
-            payment_status: input.payment_status,
-            total_amount: input.total_amount,
-            status: input.status || 'pending', // Default to pending if not specified
-            // POS Fields
+            user_id: input.customer_id || null, // customer_id maps to user_id (optional)
+            financial_status: input.payment_status === 'paid' ? 'paid' : 'pending',
+            fulfillment_status: input.status === 'delivered' ? 'fulfilled' : 'unfulfilled',
+            grand_total: input.total_amount, // total_amount maps to grand_total
+            subtotal: input.total_amount - (input.tax_amount || 0) + (input.discount_amount || 0),
+
+            // Expected columns from recent DB check
             discount_amount: input.discount_amount || 0,
             tax_amount: input.tax_amount || 0,
-            payment_method: input.payment_method || 'Online',
-            order_type: input.order_type || 'online',
+            payment_method: input.payment_method || 'Cash',
+            order_type: input.order_type || 'pos',
             notes: input.notes
         })
         .select()
