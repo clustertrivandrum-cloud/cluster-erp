@@ -40,11 +40,14 @@ export async function notifyLowStock(variantId: string) {
     const qty = data.available_quantity ?? 0
     const reorder = data.reorder_point ?? 0
     if (qty > reorder) return
+    const variant = Array.isArray(data.product_variants)
+      ? data.product_variants[0]
+      : data.product_variants
 
     await deliver({
       type: 'low_stock',
       subject: 'Low stock alert',
-      body: `Variant ${data.product_variants?.sku || variantId} is at ${qty} (reorder ${reorder}).`,
+      body: `Variant ${variant?.sku || variantId} is at ${qty} (reorder ${reorder}).`,
       meta: { variantId, qty, reorder },
     })
   } catch (e) {

@@ -90,12 +90,12 @@ export async function getInventoryItems(query: string = '', page: number = 1, li
         return {
             id: variant.id,
             title: variant.products?.title || variant.sku || 'Variant',
-            sku: variant.sku,
-            product_title: variant.products?.title,
+            sku: variant.sku || '',
+            product_title: variant.products?.title || '',
             product_image: variant.products?.product_media?.[0]?.media_url || null,
             quantity,
             reorder_point: reorderPoint,
-            bin_location: inventory.bin_location,
+            bin_location: inventory.bin_location || null,
             status
         }
     })
@@ -203,8 +203,11 @@ export async function getInventoryStats() {
     let outOfStockCount = 0
 
     ;(inventory as InventoryStatRow[] | null)?.forEach((item) => {
-        if (item.available_quantity === 0) outOfStockCount++
-        else if (item.available_quantity <= (item.reorder_point || 10)) lowStockCount++
+        const availableQuantity = item.available_quantity ?? 0
+        const reorderPoint = item.reorder_point ?? 10
+
+        if (availableQuantity === 0) outOfStockCount++
+        else if (availableQuantity <= reorderPoint) lowStockCount++
     })
 
     return {

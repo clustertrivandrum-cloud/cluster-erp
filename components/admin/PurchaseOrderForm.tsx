@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPurchaseOrder } from '@/lib/actions/purchase-order-actions'
 import { getSuppliers } from '@/lib/actions/supplier-actions' // Assuming this exists
-import { getProducts, searchVariants } from '@/lib/actions/product-actions' // Need to fetch variants
+import { searchVariants } from '@/lib/actions/product-actions'
 import { Search, Plus, Trash2, Save, ArrowLeft, Loader2 } from 'lucide-react'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
@@ -13,8 +13,8 @@ import Textarea from '@/components/ui/Textarea'
 interface Variant {
     id: string
     title: string // Product Title + Variant Options
-    sku: string
-    cost_price: number
+    sku?: string | null
+    cost_price?: number | null
     product_images: string[]
 }
 

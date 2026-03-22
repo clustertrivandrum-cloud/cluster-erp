@@ -27,7 +27,11 @@ export async function getReviews(status: string = 'pending', page: number = 1) {
     return { data: data || [], error: null }
 }
 
-export async function updateReviewStatus(id: string, status: 'approved' | 'rejected' | 'spam') {
+export async function updateReviewStatus(
+    id: string,
+    status: 'approved' | 'rejected' | 'spam',
+    _formData: FormData
+) {
     await requireActionPermission('manage_reviews')
     const supabase = await createClient()
     const { error } = await supabase
@@ -35,7 +39,9 @@ export async function updateReviewStatus(id: string, status: 'approved' | 'rejec
         .update({ status })
         .eq('id', id)
 
-    if (error) return { error: error.message }
+    if (error) {
+        throw new Error(error.message)
+    }
+
     revalidatePath('/admin/reviews')
-    return { success: true }
 }

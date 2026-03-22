@@ -83,6 +83,12 @@ export default function RolePermissionModal({ role, onClose, onSuccess }: RolePe
             targetRoleId = createRes.data.id
         }
 
+        if (!targetRoleId) {
+            setAlertConfig({ isOpen: true, message: 'Failed to resolve role.' })
+            setSaving(false)
+            return
+        }
+
         // 2. Update Permissions
         const updateRes = await updateRolePermissions(targetRoleId, selectedPermissions)
         if (updateRes.success) {

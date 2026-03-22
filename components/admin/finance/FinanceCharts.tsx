@@ -37,7 +37,7 @@ export default function FinanceCharts({ data }: FinanceChartsProps) {
                         />
                         <Tooltip
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                            formatter={(value: number | string) => [`₹${Number(value).toLocaleString()}`, undefined]}
+                            formatter={(value) => `₹${Number(value ?? 0).toLocaleString()}`}
                         />
                         <Legend wrapperStyle={{ paddingTop: '20px' }} />
                         <Bar
