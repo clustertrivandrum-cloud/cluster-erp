@@ -1,30 +1,48 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { getProducts } from '@/lib/actions/product-actions'
-import { Plus, Search, Edit, Trash2 } from 'lucide-react'
+import { Plus, Search, Edit, ImageOff, Download } from 'lucide-react'
+import DeleteProductButton from '@/components/admin/product/DeleteProductButton'
 
 export default async function ProductsPage({
     searchParams,
 }: {
-    searchParams: { q?: string; page?: string }
+    searchParams: Promise<{ q?: string; page?: string }>
 }) {
-    const query = searchParams.q || ''
-    const currentPage = Number(searchParams.page) || 1
+    const { q = '', page = '1' } = await searchParams
+    const query = q || ''
+    const currentPage = Number(page) || 1
     const limit = 10
 
-    const { data: products, count } = await getProducts(query, currentPage, limit)
-    const totalPages = Math.ceil((count || 0) / limit)
+    const { data: products, count, error } = await getProducts(query, currentPage, limit)
+    const totalPages = count
+        ? Math.max(1, Math.ceil(count / limit))
+        : Math.max(1, currentPage + (products && products.length === limit ? 1 : 0))
+
+    const hasPrev = currentPage > 1
+    const hasNext = count
+        ? currentPage < totalPages
+        : Boolean(products && products.length === limit)
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-                <Link
-                    href="/admin/products/new"
-                    className="flex items-center px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors"
-                >
-                    <Plus className="w-5 h-5 mr-2" />
-                    Add Product
-                </Link>
+                <div className="flex gap-2">
+                    <a
+                        href="/api/admin/exports/products"
+                        className="flex items-center px-3 py-2 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                        <Download className="w-4 h-4 mr-2" /> Export CSV
+                    </a>
+                    <Link
+                        href="/admin/products/new"
+                        className="flex items-center px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors"
+                    >
+                        <Plus className="w-5 h-5 mr-2" />
+                        Add Product
+                    </Link>
+                </div>
             </div>
 
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center space-x-4">
@@ -44,24 +62,37 @@ export default async function ProductsPage({
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                 <div className="overflow-x-auto">
+                    {error && (
+                        <div className="px-6 py-4 text-sm text-red-700 bg-red-50 border-b border-red-100">
+                            {error}
+                        </div>
+                    )}
                     <table className="w-full text-left">
                         <thead className="bg-gray-50 border-b border-gray-200">
                             <tr>
                                 <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Product</th>
                                 <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
-                                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Vendor</th>
+                                {/* Type and Vendor removed per request */}
                                 <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                            {products?.map((product) => (
+                            {(products ?? []).map((product) => (
                                 <tr key={product.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center">
-                                            {/* Placeholder for image */}
-                                            <div className="flex-shrink-0 h-10 w-10 bg-gray-200 rounded-md flex items-center justify-center text-gray-400">
-                                                Img
+                                            <div className="relative flex-shrink-0 h-12 w-12 bg-gray-100 rounded-md flex items-center justify-center text-gray-400 overflow-hidden">
+                                                {product.product_media?.[0]?.media_url ? (
+                                                    <Image
+                                                        src={product.product_media[0].media_url}
+                                                        alt={product.title}
+                                                        fill
+                                                        className="object-cover"
+                                                        sizes="48px"
+                                                    />
+                                                ) : (
+                                                    <ImageOff className="w-5 h-5" />
+                                                )}
                                             </div>
                                             <div className="ml-4">
                                                 <div className="text-sm font-medium text-gray-900">{product.title}</div>
@@ -77,20 +108,12 @@ export default async function ProductsPage({
                                             {product.status}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {product.product_type || '-'}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {product.vendor || '-'}
-                                    </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div className="flex items-center justify-end space-x-2">
                                             <Link href={`/admin/products/${product.id}`} className="text-gray-500 hover:text-gray-900 p-1 hover:bg-gray-100 rounded">
                                                 <Edit className="w-5 h-5" />
                                             </Link>
-                                            <button className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded">
-                                                <Trash2 className="w-5 h-5" />
-                                            </button>
+                                            <DeleteProductButton id={product.id} title={product.title} />
                                         </div>
                                     </td>
                                 </tr>
@@ -107,27 +130,35 @@ export default async function ProductsPage({
                 </div>
 
                 {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                        <div className="text-sm text-gray-500">
-                            Page {currentPage} of {totalPages}
-                        </div>
-                        <div className="flex space-x-2">
-                            <Link
-                                href={`/admin/products?page=${currentPage - 1}&q=${query}`}
-                                className={`px-3 py-1 border border-gray-300 rounded-md text-sm font-medium ${currentPage <= 1 ? 'pointer-events-none opacity-50 bg-gray-50' : 'hover:bg-gray-50'}`}
-                            >
-                                Previous
-                            </Link>
-                            <Link
-                                href={`/admin/products?page=${currentPage + 1}&q=${query}`}
-                                className={`px-3 py-1 border border-gray-300 rounded-md text-sm font-medium ${currentPage >= totalPages ? 'pointer-events-none opacity-50 bg-gray-50' : 'hover:bg-gray-50'}`}
-                            >
-                                Next
-                            </Link>
-                        </div>
+                <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                    <div className="text-sm text-gray-500">
+                        Page {currentPage} of {totalPages}
                     </div>
-                )}
+                    <div className="flex space-x-2">
+                        {/* Prev */}
+                        <Link
+                            href={hasPrev ? `/admin/products?page=${currentPage - 1}&q=${query}` : '#'}
+                            className={`px-3 py-1 border border-gray-300 rounded-md text-sm font-medium transition ${hasPrev
+                                ? 'text-gray-700 bg-white hover:bg-gray-50 hover:text-gray-900'
+                                : 'text-gray-400 bg-gray-50 cursor-not-allowed'
+                                }`}
+                            aria-disabled={!hasPrev}
+                        >
+                            Previous
+                        </Link>
+                        {/* Next */}
+                        <Link
+                            href={hasNext ? `/admin/products?page=${currentPage + 1}&q=${query}` : '#'}
+                            className={`px-3 py-1 border border-gray-300 rounded-md text-sm font-medium transition ${hasNext
+                                ? 'text-gray-700 bg-white hover:bg-gray-50 hover:text-gray-900'
+                                : 'text-gray-400 bg-gray-50 cursor-not-allowed'
+                                }`}
+                            aria-disabled={!hasNext}
+                        >
+                            Next
+                        </Link>
+                    </div>
+                </div>
             </div>
         </div>
     )

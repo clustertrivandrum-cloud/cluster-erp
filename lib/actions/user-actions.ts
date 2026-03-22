@@ -1,10 +1,12 @@
 'use server'
 
+import { requireActionPermission, requireAuthenticatedAdmin } from '@/lib/auth'
 import { createClient } from '@/lib/supabase'
 import { createAdminClient } from '@/lib/supabase-admin'
 import { revalidatePath } from 'next/cache'
 
 export async function createUser(data: any) {
+    await requireActionPermission('manage_users')
     const supabaseAdmin = createAdminClient()
 
     const { email, password, fullName, roleId } = data
@@ -42,6 +44,7 @@ export async function createUser(data: any) {
 }
 
 export async function getUsers() {
+    await requireActionPermission('manage_users')
     // Admin function: Use Service Role to bypass RLS
     const supabaseAdmin = createAdminClient()
 
@@ -61,6 +64,7 @@ export async function getUsers() {
 }
 
 export async function getRoles() {
+    await requireActionPermission(['manage_users', 'manage_roles'])
     // Public data, but using admin client ensures we get it regardless of RLS
     const supabaseAdmin = createAdminClient()
     const { data, error } = await supabaseAdmin.from('roles').select('*').order('name')
@@ -69,6 +73,7 @@ export async function getRoles() {
 }
 
 export async function updateUserRole(userId: string, roleId: string) {
+    await requireActionPermission('manage_users')
     const supabaseAdmin = createAdminClient()
     const { error } = await supabaseAdmin
         .from('users')
@@ -81,6 +86,7 @@ export async function updateUserRole(userId: string, roleId: string) {
 }
 
 export async function toggleUserStatus(userId: string, isActive: boolean) {
+    await requireActionPermission('manage_users')
     const supabaseAdmin = createAdminClient()
     const { error } = await supabaseAdmin
         .from('users')
@@ -93,6 +99,7 @@ export async function toggleUserStatus(userId: string, isActive: boolean) {
 }
 
 export async function createRole(name: string) {
+    await requireActionPermission('manage_roles')
     const supabase = await createClient()
     const { data, error } = await supabase
         .from('roles')
@@ -106,6 +113,7 @@ export async function createRole(name: string) {
 }
 
 export async function deleteRole(id: string) {
+    await requireActionPermission('manage_roles')
     const supabase = await createClient()
     const { error } = await supabase.from('roles').delete().eq('id', id)
     if (error) return { success: false, error: error.message }
@@ -118,6 +126,7 @@ export async function deleteRole(id: string) {
 // ==============================
 
 export async function getPermissions() {
+    await requireActionPermission('manage_roles')
     const supabase = await createClient()
     const { data, error } = await supabase.from('permissions').select('*').order('key')
     if (error) return { success: false, error: error.message }
@@ -125,6 +134,7 @@ export async function getPermissions() {
 }
 
 export async function getRolePermissions(roleId: string) {
+    await requireActionPermission('manage_roles')
     const supabase = await createClient()
     const { data, error } = await supabase
         .from('role_permissions')
@@ -136,6 +146,7 @@ export async function getRolePermissions(roleId: string) {
 }
 
 export async function updateRolePermissions(roleId: string, permissionIds: string[]) {
+    await requireActionPermission('manage_roles')
     const supabaseAdmin = createAdminClient()
 
     // 1. Delete existing
@@ -165,6 +176,7 @@ export async function updateRolePermissions(roleId: string, permissionIds: strin
 // ==============================
 
 export async function updateUser(userId: string, data: { fullName: string, email: string }) {
+    await requireActionPermission('manage_users')
     const supabaseAdmin = createAdminClient()
 
     // 1. Update public.users
@@ -191,6 +203,7 @@ export async function updateUser(userId: string, data: { fullName: string, email
 }
 
 export async function deleteUser(userId: string) {
+    await requireActionPermission('manage_users')
     const supabaseAdmin = createAdminClient()
 
     // Delete from Auth (Cascades to public.users)
@@ -202,36 +215,6 @@ export async function deleteUser(userId: string) {
 }
 
 export async function getMyPermissions() {
-    const supabase = await createClient()
-
-    // 1. Get current user
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { success: false, error: 'Not authenticated' }
-
-    // 2. Get user's role
-    const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('role_id')
-        .eq('id', user.id)
-        .single()
-
-    if (userError || !userData) return { success: false, error: 'User profile not found' }
-
-    // 3. Get permissions for that role
-    // We join role_permissions -> permissions to get the 'key'
-    const { data: permissions, error: permError } = await supabase
-        .from('role_permissions')
-        .select(`
-            permission:permissions (
-                key
-            )
-        `)
-        .eq('role_id', userData.role_id)
-
-    if (permError) return { success: false, error: permError.message }
-
-    // Transform to simple array of keys ['view_dashboard', 'manage_products']
-    const permissionKeys = permissions.map((p: any) => p.permission.key)
-
-    return { success: true, data: permissionKeys }
+    const access = await requireAuthenticatedAdmin()
+    return { success: true, data: access.permissions }
 }

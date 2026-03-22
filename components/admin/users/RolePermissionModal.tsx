@@ -68,44 +68,33 @@ export default function RolePermissionModal({ role, onClose, onSuccess }: RolePe
 
         // 1. Create Role if new
         if (!targetRoleId) {
-            const createRes = await createRole(roleName)
-            // Note: createRole doesn't return ID in current impl, we might need to fetch it or update createRole.
-            // But wait, createRole in user-actions just inserts. We should verify it returns data or we fetch it.
-            // Actually, the current createRole simple action just inserts name. 
-            // We need to update createRole to return the new role or we just refresh.
-            // For now, let's assume we can't assign permissions to a NEW role immediately in this wizard 
-            // without updating createRole to return the ID.
+            if (!roleName.trim()) {
+                setAlertConfig({ isOpen: true, message: 'Role name is required.' })
+                setSaving(false)
+                return
+            }
 
-            // FIXME: Let's assume for this step we just create role. 
-            // But user wants "Create roles with specific modules".
-            // I'll update createRole to returning *.
-
-            // For now, let's just alert success for creation and close. 
-            // User can then edit to add permissions. 
-            // OR I can quick-fix createRole in next step.
-
-            // Let's assume for now we just handle Edit Mode perfectly. 
-            // For Create, we'll just do name.
-            if (!createRes.success) {
+            const createRes = await createRole(roleName.trim())
+            if (!createRes.success || !createRes.data?.id) {
                 setAlertConfig({ isOpen: true, message: createRes.error || 'Failed to create role' })
                 setSaving(false)
                 return
             }
-            // If we can't get ID easily without refactoring, we'll stop here.
-            onSuccess()
-            onClose()
-            return
+            targetRoleId = createRes.data.id
         }
 
-        // 2. Update Permissions (Only for existing role)
+        // 2. Update Permissions
         const updateRes = await updateRolePermissions(targetRoleId, selectedPermissions)
         if (updateRes.success) {
+            setAlertConfig({ isOpen: true, message: 'Saved successfully.' })
             onSuccess()
-            onClose()
+            setSaving(false)
+            // slight delay to let user see success
+            setTimeout(() => onClose(), 300)
         } else {
             setAlertConfig({ isOpen: true, message: updateRes.error || 'Failed to update permissions' })
+            setSaving(false)
         }
-        setSaving(false)
     }
 
     return (

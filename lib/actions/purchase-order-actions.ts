@@ -1,8 +1,10 @@
 'use server'
 
+import { requireActionPermission } from '@/lib/auth'
 import { createClient } from '@/lib/supabase'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { getPagination, normalizeSearchTerm } from '@/lib/server/pagination'
 
 const PurchaseOrderItemSchema = z.object({
     variant_id: z.string().uuid(),
@@ -22,8 +24,11 @@ export type PurchaseOrderState = {
     success?: boolean
 }
 
-export async function getPurchaseOrders(query?: string) {
+export async function getPurchaseOrders(query?: string, page: number = 1, limit: number = 20) {
+    await requireActionPermission('manage_suppliers')
     const supabase = await createClient()
+    const { from, to } = getPagination({ page, limit, defaultLimit: 20, maxLimit: 50 })
+    const searchTerm = normalizeSearchTerm(query)
 
     let dbQuery = supabase
         .from('purchase_orders')
@@ -35,28 +40,32 @@ export async function getPurchaseOrders(query?: string) {
             expected_date, 
             created_at,
             suppliers (name)
-        `)
+        `, { count: 'exact' })
         .order('created_at', { ascending: false })
+        .range(from, to)
 
-    if (query) {
+    if (searchTerm) {
         // Search by order number or supplier name
         // Note: searching localized relation fields (suppliers.name) in Supabase is tricky with simple ilike
         // We'll stick to order_number for now or filtering in memory if needed, 
         // but for simple text search on ID/Order Number:
-        dbQuery = dbQuery.textSearch('order_number', query)
+        if (!isNaN(Number(searchTerm))) {
+            dbQuery = dbQuery.eq('order_number', Number(searchTerm))
+        }
     }
 
-    const { data, error } = await dbQuery
+    const { data, error, count } = await dbQuery
 
     if (error) {
         console.error('Error fetching purchase orders:', error)
-        return []
+        return { data: [], count: 0, error: error.message }
     }
 
-    return data
+    return { data, count: count || 0, error: null }
 }
 
 export async function getPurchaseOrder(id: string) {
+    await requireActionPermission('manage_suppliers')
     const supabase = await createClient()
 
     const { data, error } = await supabase
@@ -68,9 +77,8 @@ export async function getPurchaseOrder(id: string) {
                 *,
                 product_variants (
                     id,
-                    title,
                     sku,
-                    products (title, images)
+                    products (title, product_media (media_url))
                 )
             )
         `)
@@ -86,6 +94,7 @@ export async function getPurchaseOrder(id: string) {
 }
 
 export async function createPurchaseOrder(prevState: PurchaseOrderState, formData: FormData): Promise<PurchaseOrderState> {
+    await requireActionPermission('manage_suppliers')
     const supabase = await createClient()
 
     // 1. Parse Data
@@ -120,7 +129,7 @@ export async function createPurchaseOrder(prevState: PurchaseOrderState, formDat
             total_amount,
             expected_date: expected_date || null,
             notes,
-            status: 'ordered' // Direct to ordered for now, or 'draft' if we add draft logic
+            status: 'draft'
         })
         .select()
         .single()
@@ -155,7 +164,42 @@ export async function createPurchaseOrder(prevState: PurchaseOrderState, formDat
     return { success: true }
 }
 
+export async function approvePurchaseOrder(id: string) {
+    await requireActionPermission('manage_suppliers')
+    const supabase = await createClient()
+
+    const { error } = await supabase
+        .from('purchase_orders')
+        .update({ status: 'approved' })
+        .eq('id', id)
+        .in('status', ['draft'])
+
+    if (error) return { error: 'Failed to approve order' }
+
+    revalidatePath('/admin/purchase-orders')
+    revalidatePath(`/admin/purchase-orders/${id}`)
+    return { success: true }
+}
+
+export async function markPurchaseOrderInvoiced(id: string) {
+    await requireActionPermission('manage_suppliers')
+    const supabase = await createClient()
+
+    const { error } = await supabase
+        .from('purchase_orders')
+        .update({ status: 'invoiced' })
+        .eq('id', id)
+        .in('status', ['received'])
+
+    if (error) return { error: 'Failed to mark invoiced' }
+
+    revalidatePath('/admin/purchase-orders')
+    revalidatePath(`/admin/purchase-orders/${id}`)
+    return { success: true }
+}
+
 export async function receivePurchaseOrder(id: string) {
+    await requireActionPermission('manage_suppliers')
     const supabase = await createClient()
 
     // 1. Fetch PO items
@@ -172,25 +216,37 @@ export async function receivePurchaseOrder(id: string) {
         return { error: 'Purchase Order not found' }
     }
 
-    if (po.status === 'received') {
-        return { error: 'Order already received' }
+    if (po.status !== 'approved') {
+        return { error: 'Order must be approved before receiving' }
     }
 
     // 2. Update Inventory (This should ideally be an RPC for atomicity)
-    // We will loop through items and update inventory one by one for now
+    const { data: location } = await supabase.from('locations').select('id').limit(1).single()
+
     for (const item of po.purchase_order_items) {
-        // Fetch current variant to get current quantity
-        const { data: variant } = await supabase
-            .from('product_variants')
-            .select('quantity')
-            .eq('id', item.variant_id)
+        if (!location) break
+
+        // Upsert inventory per variant/location
+        const { data: existingInv } = await supabase
+            .from('inventory_items')
+            .select('id, available_quantity')
+            .eq('variant_id', item.variant_id)
+            .eq('location_id', location.id)
             .single()
 
-        if (variant) {
+        if (existingInv) {
             await supabase
-                .from('product_variants')
-                .update({ quantity: (variant.quantity || 0) + item.quantity })
-                .eq('id', item.variant_id)
+                .from('inventory_items')
+                .update({ available_quantity: (existingInv.available_quantity || 0) + item.quantity })
+                .eq('id', existingInv.id)
+        } else {
+            await supabase
+                .from('inventory_items')
+                .insert({
+                    variant_id: item.variant_id,
+                    location_id: location.id,
+                    available_quantity: item.quantity
+                })
         }
 
         // Mark item as received (full qty)
@@ -216,20 +272,37 @@ export async function receivePurchaseOrder(id: string) {
 }
 
 export async function deletePurchaseOrder(id: string) {
+    await requireActionPermission('manage_suppliers')
     const supabase = await createClient()
 
-    // Only allow delete if not received (simple check)
-    // The foreign key constraint on items is ON DELETE CASCADE according to schema? 
-    // Let's check schema: "purchase_order_id uuid references purchase_orders(id) on delete cascade" -> Yes.
+    // Prevent delete if already received/invoiced/approved
+    const { data: po } = await supabase
+        .from('purchase_orders')
+        .select('status')
+        .eq('id', id)
+        .single()
+
+    if (po && ['received', 'invoiced', 'approved'].includes(po.status)) {
+        return { error: 'Cannot delete an approved/received/invoiced PO' }
+    }
+
+    // Ensure not referenced by items (safety if FK absent)
+    const { count: itemCount } = await supabase
+        .from('purchase_order_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('purchase_order_id', id)
+
+    if ((itemCount ?? 0) > 0) {
+        return { error: 'Cannot delete PO with items; remove items first.' }
+    }
 
     const { error } = await supabase
         .from('purchase_orders')
         .delete()
         .eq('id', id)
-        .neq('status', 'received') // Prevent deleting received orders for audit
 
     if (error) {
-        return { error: 'Failed to delete order (cannot delete Received orders)' }
+        return { error: 'Failed to delete order' }
     }
 
     revalidatePath('/admin/purchase-orders')

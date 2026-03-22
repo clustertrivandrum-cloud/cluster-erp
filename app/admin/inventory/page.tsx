@@ -4,12 +4,16 @@ import { useState, useEffect } from 'react'
 import { getInventoryItems, getInventoryStats, updateStock, updateBinLocation, type InventoryItem } from '@/lib/actions/inventory-actions'
 import { Search, Filter, AlertTriangle, Package, XCircle, Edit2, Check, X, MapPin } from 'lucide-react'
 import Input from '@/components/ui/Input'
+import PaginationBar from '@/components/ui/PaginationBar'
 
 export default function InventoryPage() {
     const [items, setItems] = useState<InventoryItem[]>([])
+    const [count, setCount] = useState(0)
     const [stats, setStats] = useState({ totalItems: 0, lowStock: 0, outOfStock: 0 })
     const [loading, setLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState('')
+    const [page, setPage] = useState(1)
+    const PAGE_SIZE = 10
 
     // Editing State
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -20,21 +24,27 @@ export default function InventoryPage() {
         loadData()
     }, [])
 
-    const loadData = async (query?: string) => {
+    const loadData = async (query?: string, nextPage: number = 1) => {
         setLoading(true)
-        const [itemsData, statsData] = await Promise.all([
-            getInventoryItems(query),
+        const [itemsRes, statsData] = await Promise.all([
+            getInventoryItems(query, nextPage, PAGE_SIZE),
             getInventoryStats()
         ])
-        setItems(itemsData)
+        setItems(itemsRes.items || [])
+        setCount(itemsRes.count || itemsRes.items.length || 0)
         setStats(statsData)
+        setPage(nextPage)
         setLoading(false)
     }
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault()
-        loadData(searchQuery)
+        loadData(searchQuery, 1)
     }
+
+    const totalPages = Math.max(1, Math.ceil((count || items.length) / PAGE_SIZE))
+    const currentPage = Math.min(page, totalPages)
+    const visibleItems = items
 
     const startEdit = (item: InventoryItem) => {
         setEditingId(item.id)
@@ -133,7 +143,7 @@ export default function InventoryPage() {
                         ) : items.length === 0 ? (
                             <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">No products found.</td></tr>
                         ) : (
-                            items.map(item => (
+                            visibleItems.map(item => (
                                 <tr key={item.id} className="hover:bg-gray-50 group">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center">
@@ -229,6 +239,13 @@ export default function InventoryPage() {
                     </tbody>
                 </table>
             </div>
+
+            <PaginationBar
+                page={currentPage}
+                totalItems={items.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={setPage}
+            />
         </div>
     )
 }

@@ -37,6 +37,15 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
     const [activeVariantTab, setActiveVariantTab] = useState('general')
     const [customizationTemplate, setCustomizationTemplate] = useState<Record<string, string | string[]>>(initialProduct?.customization_template || {})
 
+    // Quick rollups to keep parent-level messaging clear when variants are present
+    const totalVariantQuantity = variants.reduce((sum, variant) => sum + (Number(variant.quantity) || 0), 0)
+    const lowestReorderPoint = variants.reduce((min: number | null, variant) => {
+        const value = Number(variant.reorder_point)
+        if (Number.isNaN(value)) return min
+        if (min === null) return value
+        return Math.min(min, value)
+    }, null)
+
     useEffect(() => {
         getCategories().then(cats => {
             setCategories(cats)
@@ -295,7 +304,26 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                     {options.length > 0 ? (
                         <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-8 text-center">
                             <h3 className="text-lg font-medium text-blue-900 mb-2">Pricing & Inventory Handled by Variants</h3>
-                            <p className="text-sm text-blue-700">Because this product has multiple variants (e.g. Size, Color), you manage the individual pricing, SKU, and quantities for each variant in the previous step.</p>
+                            <p className="text-sm text-blue-700">This product has variants, so parent-level price, SKU, and quantity are ignored. Use the table in Step 4 to set each variant’s on-hand stock.</p>
+
+                            <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4 text-left">
+                                <div className="rounded-lg border border-blue-100 bg-white/70 px-4 py-3">
+                                    <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide">Variants</p>
+                                    <p className="text-lg font-bold text-blue-900">{variants.length}</p>
+                                    <p className="text-xs text-blue-700 mt-1">Total variants generated</p>
+                                </div>
+                                <div className="rounded-lg border border-blue-100 bg-white/70 px-4 py-3">
+                                    <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide">On-hand Qty (sum)</p>
+                                    <p className="text-lg font-bold text-blue-900">{totalVariantQuantity}</p>
+                                    <p className="text-xs text-blue-700 mt-1">Across all variants</p>
+                                </div>
+                                <div className="rounded-lg border border-blue-100 bg-white/70 px-4 py-3">
+                                    <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide">Lowest Reorder Point</p>
+                                    <p className="text-lg font-bold text-blue-900">{lowestReorderPoint ?? '—'}</p>
+                                    <p className="text-xs text-blue-700 mt-1">Alert level among variants</p>
+                                </div>
+                            </div>
+
                             <button
                                 type="button"
                                 onClick={() => setCurrentStep(4)}
@@ -523,9 +551,12 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                 <div className="space-y-6">
                                     <ImageUpload
                                         value={variants.find(v => v.id === editingVariantId)?.images || []}
-                                        onChange={(urls) => {
+                                        onChange={(url) => {
                                             const index = variants.findIndex(v => v.id === editingVariantId)
-                                            if (index !== -1) updateVariant(index, 'images', urls)
+                                            if (index !== -1) {
+                                                const currentImages = variants[index].images || []
+                                                updateVariant(index, 'images', [...currentImages, url])
+                                            }
                                         }}
                                         onRemove={(url) => {
                                             const index = variants.findIndex(v => v.id === editingVariantId)
@@ -555,10 +586,13 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                             label="Cost Price"
                                             type="number"
                                             step="0.01"
-                                            value={variants.find(v => v.id === editingVariantId)?.cost_price || ''}
+                                            value={variants.find(v => v.id === editingVariantId)?.cost_price ?? ''}
                                             onChange={(e) => {
                                                 const index = variants.findIndex(v => v.id === editingVariantId)
-                                                if (index !== -1) updateVariant(index, 'cost_price', parseFloat(e.target.value))
+                                                if (index !== -1) {
+                                                    const next = e.target.value === '' ? null : parseFloat(e.target.value)
+                                                    updateVariant(index, 'cost_price', next)
+                                                }
                                             }}
                                             helperText="Your purchase cost"
                                         />
@@ -566,10 +600,13 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                             label="Compare At Price"
                                             type="number"
                                             step="0.01"
-                                            value={variants.find(v => v.id === editingVariantId)?.compare_at_price || ''}
+                                            value={variants.find(v => v.id === editingVariantId)?.compare_at_price ?? ''}
                                             onChange={(e) => {
                                                 const index = variants.findIndex(v => v.id === editingVariantId)
-                                                if (index !== -1) updateVariant(index, 'compare_at_price', parseFloat(e.target.value))
+                                                if (index !== -1) {
+                                                    const next = e.target.value === '' ? null : parseFloat(e.target.value)
+                                                    updateVariant(index, 'compare_at_price', next)
+                                                }
                                             }}
                                             helperText="Original price (strikethrough)"
                                         />
@@ -585,7 +622,10 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                         value={variants.find(v => v.id === editingVariantId)?.reorder_point || 10}
                                         onChange={(e) => {
                                             const index = variants.findIndex(v => v.id === editingVariantId)
-                                            if (index !== -1) updateVariant(index, 'reorder_point', parseInt(e.target.value))
+                                            if (index !== -1) {
+                                                const next = e.target.value === '' ? 0 : parseInt(e.target.value)
+                                                updateVariant(index, 'reorder_point', isNaN(next) ? 0 : next)
+                                            }
                                         }}
                                         helperText="Alert when stock is low"
                                     />
@@ -612,7 +652,10 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                             value={variants.find(v => v.id === editingVariantId)?.weight_value || ''}
                                             onChange={(e) => {
                                                 const index = variants.findIndex(v => v.id === editingVariantId)
-                                                if (index !== -1) updateVariant(index, 'weight_value', parseFloat(e.target.value))
+                                                if (index !== -1) {
+                                                    const next = e.target.value === '' ? null : parseFloat(e.target.value)
+                                                    updateVariant(index, 'weight_value', next)
+                                                }
                                             }}
                                         />
                                         <Select
@@ -632,35 +675,44 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Dimensions (L x W x H)</label>
                                         <div className="grid grid-cols-4 gap-4">
                                             <Input
-                                                label="Length"
-                                                type="number"
-                                                step="0.01"
-                                                value={variants.find(v => v.id === editingVariantId)?.dimension_length || ''}
-                                                onChange={(e) => {
-                                                    const index = variants.findIndex(v => v.id === editingVariantId)
-                                                    if (index !== -1) updateVariant(index, 'dimension_length', parseFloat(e.target.value))
-                                                }}
-                                            />
+                                            label="Length"
+                                            type="number"
+                                            step="0.01"
+                                            value={variants.find(v => v.id === editingVariantId)?.dimension_length || ''}
+                                            onChange={(e) => {
+                                                const index = variants.findIndex(v => v.id === editingVariantId)
+                                                if (index !== -1) {
+                                                    const next = e.target.value === '' ? null : parseFloat(e.target.value)
+                                                    updateVariant(index, 'dimension_length', next)
+                                                }
+                                            }}
+                                        />
                                             <Input
-                                                label="Width"
-                                                type="number"
-                                                step="0.01"
-                                                value={variants.find(v => v.id === editingVariantId)?.dimension_width || ''}
-                                                onChange={(e) => {
-                                                    const index = variants.findIndex(v => v.id === editingVariantId)
-                                                    if (index !== -1) updateVariant(index, 'dimension_width', parseFloat(e.target.value))
-                                                }}
-                                            />
+                                            label="Width"
+                                            type="number"
+                                            step="0.01"
+                                            value={variants.find(v => v.id === editingVariantId)?.dimension_width || ''}
+                                            onChange={(e) => {
+                                                const index = variants.findIndex(v => v.id === editingVariantId)
+                                                if (index !== -1) {
+                                                    const next = e.target.value === '' ? null : parseFloat(e.target.value)
+                                                    updateVariant(index, 'dimension_width', next)
+                                                }
+                                            }}
+                                        />
                                             <Input
-                                                label="Height"
-                                                type="number"
-                                                step="0.01"
-                                                value={variants.find(v => v.id === editingVariantId)?.dimension_height || ''}
-                                                onChange={(e) => {
-                                                    const index = variants.findIndex(v => v.id === editingVariantId)
-                                                    if (index !== -1) updateVariant(index, 'dimension_height', parseFloat(e.target.value))
-                                                }}
-                                            />
+                                            label="Height"
+                                            type="number"
+                                            step="0.01"
+                                            value={variants.find(v => v.id === editingVariantId)?.dimension_height || ''}
+                                            onChange={(e) => {
+                                                const index = variants.findIndex(v => v.id === editingVariantId)
+                                                if (index !== -1) {
+                                                    const next = e.target.value === '' ? null : parseFloat(e.target.value)
+                                                    updateVariant(index, 'dimension_height', next)
+                                                }
+                                            }}
+                                        />
                                             <Select
                                                 label="Unit"
                                                 value={variants.find(v => v.id === editingVariantId)?.dimension_unit || 'cm'}

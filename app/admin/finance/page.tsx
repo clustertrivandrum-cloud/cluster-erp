@@ -2,7 +2,7 @@ import { getFinancialStats, getExpenses } from '@/lib/actions/finance-actions'
 import FinanceCharts from '@/components/admin/finance/FinanceCharts'
 import ExpenseList from '@/components/admin/finance/ExpenseList'
 import FinanceFilters from '@/components/admin/finance/FinanceFilters'
-import { TrendingUp, TrendingDown, DollarSign, Wallet } from 'lucide-react'
+import { TrendingUp, TrendingDown, Wallet } from 'lucide-react'
 
 // Props type for Server Component pages
 type Props = {

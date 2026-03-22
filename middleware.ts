@@ -1,14 +1,14 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getRequiredPermissionForPath } from '@/lib/permissions'
 
 export async function middleware(request: NextRequest) {
-    let response = NextResponse.next({
+    const response = NextResponse.next({
         request: {
             headers: request.headers,
         },
     })
 
-    console.log('Middleware running. URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -31,10 +31,55 @@ export async function middleware(request: NextRequest) {
         data: { user },
     } = await supabase.auth.getUser()
 
-    // Protect /admin routes
+    if (request.nextUrl.pathname === '/login' && user) {
+        return NextResponse.redirect(new URL('/admin', request.url))
+    }
+
     if (request.nextUrl.pathname.startsWith('/admin')) {
         if (!user) {
-            return NextResponse.redirect(new URL('/login', request.url))
+            const url = new URL('/login', request.url)
+            url.searchParams.set('return_to', request.nextUrl.pathname + request.nextUrl.search)
+            return NextResponse.redirect(url)
+        }
+
+        const { data: userRecord } = await supabase
+            .from('users')
+            .select('role_id, is_active')
+            .eq('id', user.id)
+            .maybeSingle()
+
+        if (!userRecord?.is_active) {
+            const url = new URL('/login', request.url)
+            url.searchParams.set('return_to', request.nextUrl.pathname + request.nextUrl.search)
+            return NextResponse.redirect(url)
+        }
+
+        const requiredPermission = getRequiredPermissionForPath(request.nextUrl.pathname)
+        if (requiredPermission && userRecord.role_id) {
+            const { data: permissionRows } = await supabase
+                .from('role_permissions')
+                .select(`
+                    permission:permissions (
+                        key
+                    )
+                `)
+                .eq('role_id', userRecord.role_id)
+
+            const permissionKeys = (permissionRows || [])
+                .flatMap((row: { permission: Array<{ key?: string }> | { key?: string } | null }) => {
+                    if (Array.isArray(row.permission)) {
+                        return row.permission.map((item) => item.key)
+                    }
+
+                    return row.permission?.key ? [row.permission.key] : []
+                })
+                .filter((value): value is string => Boolean(value))
+
+            const requiredPermissions = Array.isArray(requiredPermission) ? requiredPermission : [requiredPermission]
+
+            if (!requiredPermissions.some((permission) => permissionKeys.includes(permission))) {
+                return NextResponse.redirect(new URL('/admin/unauthorized', request.url))
+            }
         }
     }
 

@@ -5,7 +5,7 @@ import { ImagePlus, X } from 'lucide-react';
 import Image from 'next/image';
 
 interface ImageUploadProps {
-    value: string[];
+    value: string | string[];
     onChange: (value: string) => void;
     onRemove: (value: string) => void;
 }
@@ -15,6 +15,9 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     onChange,
     onRemove
 }) => {
+    // Normalize to an array so accidental string values don't break .map
+    const images = Array.isArray(value) ? value : value ? [value] : []
+
     const onUpload = (result: any) => {
         onChange(result.info.secure_url);
     };
@@ -22,7 +25,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     return (
         <div>
             <div className="mb-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                {value.map((url) => (
+                {images.map((url) => (
                     <div key={url} className="relative aspect-square rounded-lg overflow-hidden group border border-gray-200">
                         <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button

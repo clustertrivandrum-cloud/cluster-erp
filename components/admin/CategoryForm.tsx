@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createCategory, updateCategory } from '@/lib/actions/category-actions'
-import { X, Save, Upload } from 'lucide-react'
+import { X } from 'lucide-react'
 import ImageUpload from '@/components/admin/ImageUpload'
 import Input from '@/components/ui/Input'
 import Textarea from '@/components/ui/Textarea'
@@ -16,11 +16,22 @@ interface Category {
     description: string | null
     parent_id: string | null
     image_url: string | null
+    banner_kicker?: string | null
+    banner_title?: string | null
+    banner_description?: string | null
+    banner_image_url?: string | null
+    banner_mobile_image_url?: string | null
+}
+
+interface CategoryOption {
+    id: string
+    name: string
+    parent_id: string | null
 }
 
 interface CategoryFormProps {
     category?: Category | null
-    categories: Category[]
+    categories: CategoryOption[]
     onClose: () => void
     onSuccess: () => void
 }
@@ -32,6 +43,11 @@ export default function CategoryForm({ category, categories, onClose, onSuccess 
     const [parentId, setParentId] = useState(category?.parent_id || '')
     const [description, setDescription] = useState(category?.description || '')
     const [image, setImage] = useState<string>(category?.image_url || '')
+    const [bannerKicker, setBannerKicker] = useState(category?.banner_kicker || '')
+    const [bannerTitle, setBannerTitle] = useState(category?.banner_title || '')
+    const [bannerDescription, setBannerDescription] = useState(category?.banner_description || '')
+    const [bannerImage, setBannerImage] = useState<string>(category?.banner_image_url || '')
+    const [bannerMobileImage, setBannerMobileImage] = useState<string>(category?.banner_mobile_image_url || '')
 
     const generateSlug = (val: string) => {
         return val.toLowerCase()
@@ -57,6 +73,11 @@ export default function CategoryForm({ category, categories, onClose, onSuccess 
         formData.append('description', description)
         if (parentId) formData.append('parent_id', parentId)
         if (image) formData.append('image_url', image)
+        if (bannerKicker) formData.append('banner_kicker', bannerKicker)
+        if (bannerTitle) formData.append('banner_title', bannerTitle)
+        if (bannerDescription) formData.append('banner_description', bannerDescription)
+        if (bannerImage) formData.append('banner_image_url', bannerImage)
+        if (bannerMobileImage) formData.append('banner_mobile_image_url', bannerMobileImage)
 
         let result
         if (category) {
@@ -138,6 +159,60 @@ export default function CategoryForm({ category, categories, onClose, onSuccess 
                                 onChange={(url) => setImage(url)}
                                 onRemove={() => setImage('')}
                             />
+                        </div>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 p-4">
+                        <div className="mb-4">
+                            <h4 className="text-sm font-semibold text-gray-900">Category Banner</h4>
+                            <p className="mt-1 text-xs text-gray-500">Used on the storefront category detail page.</p>
+                        </div>
+
+                        <div className="space-y-5">
+                            <Input
+                                label="Banner Kicker"
+                                type="text"
+                                value={bannerKicker}
+                                onChange={(e) => setBannerKicker(e.target.value)}
+                                placeholder="New arrivals"
+                            />
+
+                            <Input
+                                label="Banner Title"
+                                type="text"
+                                value={bannerTitle}
+                                onChange={(e) => setBannerTitle(e.target.value)}
+                                placeholder={name || 'Category name'}
+                            />
+
+                            <Textarea
+                                label="Banner Description"
+                                rows={4}
+                                value={bannerDescription}
+                                onChange={(e) => setBannerDescription(e.target.value)}
+                            />
+
+                            <div>
+                                <Label>Banner Image</Label>
+                                <div className="mt-1">
+                                    <ImageUpload
+                                        value={bannerImage ? [bannerImage] : []}
+                                        onChange={(url) => setBannerImage(url)}
+                                        onRemove={() => setBannerImage('')}
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <Label>Mobile Banner Image</Label>
+                                <div className="mt-1">
+                                    <ImageUpload
+                                        value={bannerMobileImage ? [bannerMobileImage] : []}
+                                        onChange={(url) => setBannerMobileImage(url)}
+                                        onRemove={() => setBannerMobileImage('')}
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </form>

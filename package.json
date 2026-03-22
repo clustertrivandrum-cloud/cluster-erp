@@ -13,11 +13,13 @@
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.97.0",
     "@tailwindcss/forms": "^0.5.11",
+    "@types/pdfkit": "^0.17.5",
     "cloudinary": "^2.9.0",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.574.0",
     "next": "16.1.6",
     "next-cloudinary": "^6.17.5",
+    "pdfkit": "^0.18.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^3.7.0"

@@ -65,6 +65,24 @@ create table products (
   status text check (status in ('draft','active','archived')) default 'draft',
   seo_title text,
   seo_description text,
+  -- Extended attributes (aligned with ecommerce schema)
+  brand text,
+  hs_code text,
+  origin_country text,
+  material text,
+  care_instructions text,
+  features text[],
+  is_featured boolean default false,
+  rating numeric default 0,
+  review_count integer default 0,
+  gender text check (gender in ('Men','Women','Kids','Unisex')),
+  collection text,
+  is_customizable boolean default false,
+  customization_template jsonb default '{}'::jsonb,
+  warranty_period text,
+  shipping_class text default 'standard',
+  return_policy text,
+  is_free_delivery boolean default false,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -113,7 +131,15 @@ create table product_variants (
   compare_at_price numeric(12,2),
   cost_price numeric(12,2),
   is_active boolean default true,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  -- Additional logistics fields
+  weight_value numeric,
+  weight_unit text default 'kg',
+  dimension_length numeric,
+  dimension_width numeric,
+  dimension_height numeric,
+  dimension_unit text default 'cm',
+  allow_preorder boolean default false
 );
 
 create table variant_option_values (
@@ -148,6 +174,10 @@ create table inventory_items (
   available_quantity integer default 0,
   reserved_quantity integer default 0,
   updated_at timestamptz default now(),
+  reorder_point integer default 10,
+  bin_location text,
+  batch_number text,
+  expiry_date date,
   unique (variant_id, location_id)
 );
 
@@ -180,6 +210,8 @@ create table orders (
   tax_total numeric(12,2),
   shipping_total numeric(12,2),
   grand_total numeric(12,2),
+  payment_request_token text unique,
+  payment_request_created_at timestamptz,
   currency text default 'INR',
   created_at timestamptz default now()
 );
@@ -203,6 +235,19 @@ create table payments (
   amount numeric(12,2),
   status text,
   created_at timestamptz default now()
+);
+
+create table payment_request_deliveries (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references orders(id) on delete cascade,
+  channel text not null check (channel in ('email', 'sms')),
+  provider text not null,
+  recipient text not null default '',
+  payment_url text not null,
+  status text not null check (status in ('processing', 'sent', 'failed')),
+  provider_reference text,
+  error_message text,
+  created_at timestamptz not null default now()
 );
 
 -- =========================================

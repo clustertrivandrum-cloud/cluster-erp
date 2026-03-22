@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { getMyPermissions } from '@/lib/actions/user-actions';
-import { LayoutDashboard, ShoppingBag, Users, Settings, Package, FileText, LogOut, X, Folder, Truck, ClipboardList, CreditCard } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Users, Settings, Package, FileText, LogOut, X, Folder, Truck, ClipboardList, CreditCard, Clock3, BadgePercent, ImagePlus } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 
 // Simple utility if @/lib/utils doesn't exist
@@ -21,11 +21,15 @@ const menuItems = [
     { name: 'Suppliers', href: '/admin/suppliers', icon: Truck, permission: 'manage_suppliers' },
     { name: 'Purchase Orders', href: '/admin/purchase-orders', icon: ClipboardList, permission: 'manage_suppliers' },
     { name: 'Orders', href: '/admin/orders', icon: ShoppingBag, permission: 'manage_orders' },
+    { name: 'Preorders', href: '/admin/preorders', icon: Clock3, permission: 'manage_orders' },
     { name: 'Inventory', href: '/admin/inventory', icon: FileText, permission: 'manage_inventory' },
     { name: 'POS', href: '/admin/pos', icon: CreditCard, permission: 'access_pos' },
     { name: 'Customers', href: '/admin/customers', icon: Users, permission: 'manage_customers' },
+    { name: 'Reviews', href: '/admin/reviews', icon: FileText, permission: 'manage_reviews' },
     { name: 'Users', href: '/admin/users', icon: Users, permission: 'manage_users' },
     { name: 'Finance', href: '/admin/finance', icon: FileText, permission: 'manage_finance' },
+    { name: 'Coupons', href: '/admin/coupons', icon: BadgePercent, permission: 'manage_settings' },
+    { name: 'Banners', href: '/admin/banners', icon: ImagePlus, permission: 'manage_settings' },
     { name: 'Settings', href: '/admin/settings', icon: Settings, permission: 'manage_settings' },
 ];
 

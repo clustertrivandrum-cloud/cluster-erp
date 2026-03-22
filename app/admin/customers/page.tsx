@@ -3,19 +3,46 @@
 import { useState, useEffect } from 'react'
 import { getCustomers } from '@/lib/actions/order-actions'
 import Link from 'next/link'
-import { Search, User, Mail, Phone, ShoppingBag } from 'lucide-react'
+import { Search, Mail, Phone, Download } from 'lucide-react'
+import PaginationBar from '@/components/ui/PaginationBar'
+
+type CustomerRecord = {
+    id: string
+    first_name?: string | null
+    last_name?: string | null
+    email?: string | null
+    phone?: string | null
+}
 
 export default function CustomersPage() {
-    const [customers, setCustomers] = useState<any[]>([])
+    const [customers, setCustomers] = useState<CustomerRecord[]>([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
+    const [page, setPage] = useState(1)
+    const [count, setCount] = useState(0)
+    const PAGE_SIZE = 10
 
-    useEffect(() => {
-        getCustomers(search).then((data) => {
-            setCustomers(data)
+    const loadCustomers = (nextPage: number, q: string) => {
+        setLoading(true)
+        getCustomers({ page: nextPage, limit: PAGE_SIZE, query: q }).then((res) => {
+            setCustomers(res.data || [])
+            setCount(res.count || 0)
+            setPage(nextPage)
             setLoading(false)
         })
+    }
+
+    useEffect(() => {
+        const timeoutId = window.setTimeout(() => {
+            loadCustomers(1, search)
+        }, 200)
+
+        return () => window.clearTimeout(timeoutId)
     }, [search])
+
+    const totalPages = Math.max(1, Math.ceil((count || customers.length) / PAGE_SIZE))
+    const currentPage = Math.min(page, totalPages)
+    const visibleCustomers = customers
 
     return (
         <div className="max-w-6xl mx-auto pb-10">
@@ -24,6 +51,12 @@ export default function CustomersPage() {
                     <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Customers</h1>
                     <p className="text-sm text-gray-500 mt-1">Manage your customer base.</p>
                 </div>
+                <a
+                    href="/api/admin/exports/customers"
+                    className="inline-flex items-center justify-center px-3 py-2 border border-gray-200 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50"
+                >
+                    <Download className="w-4 h-4 mr-2" /> Export CSV
+                </a>
             </div>
 
             {/* Search Bar */}
@@ -59,7 +92,7 @@ export default function CustomersPage() {
                         ) : customers.length === 0 ? (
                             <tr><td colSpan={4} className="px-6 py-12 text-center text-gray-500">No customers found.</td></tr>
                         ) : (
-                            customers.map((customer) => (
+                            visibleCustomers.map((customer) => (
                                 <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center">
@@ -100,6 +133,13 @@ export default function CustomersPage() {
                     </tbody>
                 </table>
             </div>
+
+            <PaginationBar
+                page={currentPage}
+                totalItems={count || 0}
+                pageSize={PAGE_SIZE}
+                onPageChange={(nextPage) => loadCustomers(nextPage, search)}
+            />
         </div>
     )
 }

@@ -5,27 +5,40 @@ import Link from 'next/link'
 import { Plus, Search, FileText, ChevronRight } from 'lucide-react'
 import { getPurchaseOrders } from '@/lib/actions/purchase-order-actions'
 import Input from '@/components/ui/Input'
+import PaginationBar from '@/components/ui/PaginationBar'
 
 export default function PurchaseOrdersPage() {
     const [orders, setOrders] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState('')
+    const [page, setPage] = useState(1)
+    const [count, setCount] = useState(0)
+    const [error, setError] = useState<string | null>(null)
+    const PAGE_SIZE = 10
 
     useEffect(() => {
         loadOrders()
     }, [])
 
-    const loadOrders = async (query?: string) => {
+    const loadOrders = async (query?: string, nextPage: number = 1) => {
         setLoading(true)
-        const data = await getPurchaseOrders(query)
-        setOrders(data || [])
+        const res = await getPurchaseOrders(query, nextPage, PAGE_SIZE)
+        setOrders(res.data || [])
+        setCount(res.count || 0)
+        setError(res.error || null)
+        setPage(nextPage)
         setLoading(false)
     }
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault()
-        loadOrders(searchQuery)
+        loadOrders(searchQuery, 1)
     }
+
+    const totalPages = Math.max(1, Math.ceil((count || 0) / PAGE_SIZE))
+    const currentPage = Math.min(page, totalPages)
+    const pageStart = (currentPage - 1) * PAGE_SIZE
+    const visibleOrders = orders
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -109,6 +122,12 @@ export default function PurchaseOrdersPage() {
                                         Loading orders...
                                     </td>
                                 </tr>
+                            ) : error ? (
+                                <tr>
+                                    <td colSpan={6} className="px-6 py-10 text-center text-red-600">
+                                        {error}
+                                    </td>
+                                </tr>
                             ) : orders.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="px-6 py-10 text-center text-gray-500">
@@ -120,7 +139,7 @@ export default function PurchaseOrdersPage() {
                                     </td>
                                 </tr>
                             ) : (
-                                orders.map((order) => (
+                                visibleOrders.map((order) => (
                                     <tr key={order.id} className="hover:bg-gray-50 transition-colors cursor-pointer group">
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                             #{order.order_number}
@@ -137,7 +156,7 @@ export default function PurchaseOrdersPage() {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                                            ₹{parseFloat(order.total_amount).toLocaleString()}
+                                            ₹{Number(order.total_amount || 0).toLocaleString()}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <Link href={`/admin/purchase-orders/${order.id}`} className="text-gray-900 hover:text-black inline-flex items-center">
@@ -151,6 +170,13 @@ export default function PurchaseOrdersPage() {
                         </tbody>
                     </table>
                 </div>
+
+                <PaginationBar
+                    page={currentPage}
+                    totalItems={count || 0}
+                    pageSize={PAGE_SIZE}
+                    onPageChange={(p) => loadOrders(searchQuery, p)}
+                />
             </div>
         </div>
     )

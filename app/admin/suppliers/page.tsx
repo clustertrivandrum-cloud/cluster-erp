@@ -1,56 +1,59 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Plus, Search, Pencil, Trash2, Truck } from 'lucide-react'
-import { getSuppliers, deleteSupplier } from '@/lib/actions/supplier-actions'
+import { deleteSupplier, getSupplierPage, type SupplierRecord } from '@/lib/actions/supplier-actions'
 import SupplierForm from '@/components/admin/SupplierForm'
-import { useRouter, useSearchParams } from 'next/navigation'
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
+import PaginationBar from '@/components/ui/PaginationBar'
 
-// Initial dummy data not needed since we fetch
-// const initialSuppliers = ...
+const PAGE_SIZE = 10
 
 export default function SuppliersPage() {
-    return (
-        <Suspense fallback={<div>Loading...</div>}>
-            <SuppliersList />
-        </Suspense>
-    )
-}
-
-function SuppliersList() {
-    const [suppliers, setSuppliers] = useState<any[]>([])
+    const [suppliers, setSuppliers] = useState<SupplierRecord[]>([])
     const [isFormOpen, setIsFormOpen] = useState(false)
-    const [editingSupplier, setEditingSupplier] = useState<any>(null)
+    const [editingSupplier, setEditingSupplier] = useState<SupplierRecord | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
-    const searchParams = useSearchParams()
-
-    const [deleteDTOpen, setDeleteDTOpen] = useState(false)
+    const [page, setPage] = useState(1)
+    const [count, setCount] = useState(0)
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
     const [deletingId, setDeletingId] = useState<string | null>(null)
+    const [isDeleting, setIsDeleting] = useState(false)
 
-    const fetchSuppliers = async () => {
-        const data = await getSuppliers(searchQuery)
-        setSuppliers(data)
-    }
+    const loadSuppliers = useCallback(async (nextPage: number, nextQuery: string) => {
+        setLoading(true)
+        const result = await getSupplierPage({ page: nextPage, limit: PAGE_SIZE, query: nextQuery })
+        setSuppliers(result.data || [])
+        setCount(result.count || 0)
+        setError(result.error || null)
+        setPage(nextPage)
+        setLoading(false)
+    }, [])
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            fetchSuppliers()
-        }, 300)
-        return () => clearTimeout(timer)
-    }, [searchQuery])
+        const timeoutId = window.setTimeout(() => {
+            loadSuppliers(1, searchQuery)
+        }, 200)
+
+        return () => window.clearTimeout(timeoutId)
+    }, [loadSuppliers, searchQuery])
 
     const confirmDelete = (id: string) => {
         setDeletingId(id)
-        setDeleteDTOpen(true)
+        setDeleteDialogOpen(true)
     }
 
     const handleDelete = async () => {
         if (!deletingId) return
+
+        setIsDeleting(true)
         await deleteSupplier(deletingId)
-        setDeleteDTOpen(false)
+        setDeleteDialogOpen(false)
         setDeletingId(null)
-        fetchSuppliers()
+        setIsDeleting(false)
+        loadSuppliers(page, searchQuery)
     }
 
     return (
@@ -98,7 +101,19 @@ function SuppliersList() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {suppliers.length > 0 ? (
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                                        Loading suppliers...
+                                    </td>
+                                </tr>
+                            ) : error ? (
+                                <tr>
+                                    <td colSpan={5} className="px-6 py-12 text-center text-red-600">
+                                        {error}
+                                    </td>
+                                </tr>
+                            ) : suppliers.length > 0 ? (
                                 suppliers.map((supplier) => (
                                     <tr key={supplier.id} className="hover:bg-gray-50/50 transition-colors group">
                                         <td className="px-6 py-4 font-medium text-gray-900">
@@ -156,6 +171,13 @@ function SuppliersList() {
                         </tbody>
                     </table>
                 </div>
+
+                <PaginationBar
+                    page={page}
+                    totalItems={count}
+                    pageSize={PAGE_SIZE}
+                    onPageChange={(nextPage) => loadSuppliers(nextPage, searchQuery)}
+                />
             </div>
 
             {isFormOpen && (
@@ -163,11 +185,27 @@ function SuppliersList() {
                     supplier={editingSupplier}
                     onClose={() => setIsFormOpen(false)}
                     onSuccess={() => {
-                        fetchSuppliers()
+                        loadSuppliers(page, searchQuery)
                         setIsFormOpen(false)
                     }}
                 />
             )}
+
+            <ConfirmationDialog
+                isOpen={deleteDialogOpen}
+                onClose={() => {
+                    if (!isDeleting) {
+                        setDeleteDialogOpen(false)
+                        setDeletingId(null)
+                    }
+                }}
+                onConfirm={handleDelete}
+                title="Delete supplier?"
+                message="This will permanently remove the supplier if it is not linked to existing purchase orders."
+                confirmText="Delete"
+                variant="danger"
+                loading={isDeleting}
+            />
         </div>
     )
 }

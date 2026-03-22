@@ -1,26 +1,30 @@
 'use client'
 
-import { Search, ShoppingCart, Tag, Package } from 'lucide-react'
-import { useState, useRef, useEffect } from 'react'
+import { Search, ShoppingCart, Package } from 'lucide-react'
+import { useRef } from 'react'
+import Image from 'next/image'
+import type { PosCategory, PosProduct } from '@/lib/pos-types'
 
 interface POSCatalogProps {
-    products: any[]
+    products: PosProduct[]
+    isLoading?: boolean
     search: string
     setSearch: (s: string) => void
-    addToCart: (product: any) => void
-    categories: string[]
-    selectedCategory: string
-    setSelectedCategory: (c: string) => void
+    addToCart: (product: PosProduct) => void
+    categories: PosCategory[]
+    selectedCategoryId: string
+    setSelectedCategoryId: (categoryId: string) => void
 }
 
 export default function POSCatalog({
     products,
+    isLoading = false,
     search,
     setSearch,
     addToCart,
     categories,
-    selectedCategory,
-    setSelectedCategory
+    selectedCategoryId,
+    setSelectedCategoryId
 }: POSCatalogProps) {
     const categoryScrollRef = useRef<HTMLDivElement>(null)
 
@@ -50,16 +54,25 @@ export default function POSCatalog({
                 {/* Categories (Horizontal Scroll) */}
                 <div className="px-4 pb-4 overflow-x-auto scrollbar-hide">
                     <div className="flex gap-2" ref={categoryScrollRef}>
-                        {categories.map(cat => (
+                        <button
+                            onClick={() => setSelectedCategoryId('all')}
+                            className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${selectedCategoryId === 'all'
+                                ? 'bg-gray-900 text-white border-gray-900 shadow-md shadow-gray-200 transform scale-105'
+                                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                }`}
+                        >
+                            All
+                        </button>
+                        {categories.map((category) => (
                             <button
-                                key={cat}
-                                onClick={() => setSelectedCategory(cat)}
-                                className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${selectedCategory === cat
+                                key={category.id}
+                                onClick={() => setSelectedCategoryId(category.id)}
+                                className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${selectedCategoryId === category.id
                                     ? 'bg-gray-900 text-white border-gray-900 shadow-md shadow-gray-200 transform scale-105'
                                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                     }`}
                             >
-                                {cat}
+                                {category.name}
                             </button>
                         ))}
                     </div>
@@ -73,32 +86,39 @@ export default function POSCatalog({
                         <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                             <Package className="w-10 h-10 text-gray-300" />
                         </div>
-                        <h3 className="text-lg font-bold text-gray-900 mb-1">No products found</h3>
-                        <p className="text-gray-500">Try adjusting your search or category filter</p>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">{isLoading ? 'Loading products...' : 'No products found'}</h3>
+                        <p className="text-gray-500">{isLoading ? 'Fetching a smaller catalog slice from the server.' : 'Try adjusting your search or category filter'}</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 pb-32 lg:pb-4">
                         {products.map(product => {
-                            const variant = product.product_variants?.[0]
-                            const price = variant?.price || 0
-                            const compareAt = variant?.compare_at_price
-                            const stock = variant?.inventory_items?.[0]?.available_quantity || 0
+                            // Prefer the first in-stock variant; fall back to the first variant
+                            const variant = product.product_variants.find(v => Number(v.inventory_items?.[0]?.available_quantity ?? 0) > 0)
+                                ?? product.product_variants?.[0]
+
+                            const price = Number(variant?.price ?? 0)
+                            const compareAt = Number(variant?.compare_at_price ?? 0)
+                            const stock = Number(variant?.inventory_items?.[0]?.available_quantity ?? 0)
                             const hasStock = stock > 0
                             const image = product.product_media?.[0]?.media_url
+                            const skuLabel = variant?.sku ? `SKU ${variant.sku}` : 'Default variant'
 
                             return (
                                 <button
                                     key={product.id}
                                     onClick={() => addToCart(product)}
-                                    className="group relative bg-white rounded-3xl p-3 border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-left flex flex-col h-full active:scale-95"
+                                    disabled={!hasStock}
+                                    className="group relative bg-white rounded-3xl p-3 border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-left flex flex-col h-full active:scale-95 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-sm"
                                 >
                                     {/* Image Container */}
                                     <div className="aspect-[4/3] bg-gray-50 rounded-2xl mb-3 relative overflow-hidden">
                                         {image ? (
-                                            <img
+                                            <Image
                                                 src={image}
-                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                                 alt={product.title}
+                                                fill
+                                                sizes="(max-width: 768px) 50vw, (max-width: 1536px) 25vw, 20vw"
+                                                className="object-cover transition-transform duration-500 group-hover:scale-110"
                                             />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center">
@@ -127,6 +147,7 @@ export default function POSCatalog({
                                         <h3 className="text-sm font-bold text-gray-900 line-clamp-2 leading-tight mb-2 group-hover:text-gray-700 transition-colors">
                                             {product.title}
                                         </h3>
+                                        <p className="text-[11px] font-medium text-gray-500 mb-3">{skuLabel} · Stock: {Math.max(stock, 0)}</p>
 
                                         <div className="mt-auto flex items-end justify-between">
                                             <div>

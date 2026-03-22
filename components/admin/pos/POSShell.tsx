@@ -1,32 +1,48 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { createOrder } from '@/lib/actions/order-actions'
+import { useDeferredValue, useEffect, useState } from 'react'
+import { createCustomer, createOrder } from '@/lib/actions/order-actions'
+import { getPosProducts } from '@/lib/actions/pos-actions'
 import POSCatalog from './POSCatalog'
 import POSCart from './POSCart'
-import { ShoppingBag, X, CheckCircle, CreditCard, Banknote, Printer, ChevronDown } from 'lucide-react'
+import { X, CheckCircle, CreditCard, Banknote, Printer, ChevronDown } from 'lucide-react'
+import type { PosCartItem, PosCategory, PosCustomer, PosProduct, PosProductVariant, PosSettings } from '@/lib/pos-types'
 
 // Props types
 interface POSShellProps {
-    initialProducts: any[]
-    initialCustomers: any[]
-    settings: any
+    initialProducts: PosProduct[]
+    categories: PosCategory[]
+    initialCustomers: PosCustomer[]
+    settings: PosSettings | null
 }
 
-export default function POSShell({ initialProducts, initialCustomers, settings }: POSShellProps) {
-    // Data State
-    const [products, setProducts] = useState(initialProducts)
-    const [cart, setCart] = useState<any[]>([])
+function mergeProducts(existing: PosProduct[], incoming: PosProduct[]) {
+    const merged = new Map(existing.map((product) => [product.id, product]))
+
+    for (const product of incoming) {
+        merged.set(product.id, product)
+    }
+
+    return Array.from(merged.values())
+}
+
+export default function POSShell({ initialProducts, categories, initialCustomers, settings }: POSShellProps) {
+    const [products, setProducts] = useState<PosProduct[]>(initialProducts)
+    const [knownProducts, setKnownProducts] = useState<PosProduct[]>(initialProducts)
+    const [customers, setCustomers] = useState<PosCustomer[]>(initialCustomers)
+    const [cart, setCart] = useState<PosCartItem[]>([])
+    const [isCatalogLoading, setIsCatalogLoading] = useState(false)
 
     // UI State
     const [search, setSearch] = useState('')
-    const [selectedCategory, setSelectedCategory] = useState('All')
+    const [selectedCategoryId, setSelectedCategoryId] = useState('all')
     const [isMobileCartOpen, setIsMobileCartOpen] = useState(false)
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
+    const deferredSearch = useDeferredValue(search)
 
     // Checkout State
-    const [selectedCustomer, setSelectedCustomer] = useState<any>(null)
+    const [selectedCustomer, setSelectedCustomer] = useState<PosCustomer | null>(null)
+    const [customerDetails, setCustomerDetails] = useState({ fullName: '', email: '', phone: '' })
     const [discountType, setDiscountType] = useState<'fixed' | 'percent'>('fixed')
     const [discountValue, setDiscountValue] = useState(0)
     const [paymentMethod, setPaymentMethod] = useState('Cash')
@@ -34,57 +50,119 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
     const [notes, setNotes] = useState('')
     const [isProcessing, setIsProcessing] = useState(false)
 
-    // Derived Categories
-    const categories = ['All', ...Array.from(new Set(initialProducts.map((p: any) => p.category_id || 'Uncategorized')))] as string[]
-
-    // Filter Logic
     useEffect(() => {
-        let result = initialProducts
-        if (selectedCategory !== 'All') {
-            result = result.filter(p => p.category_id === selectedCategory)
+        let cancelled = false
+
+        const loadProducts = async () => {
+            const searchTerm = deferredSearch.trim()
+            const categoryId = selectedCategoryId === 'all' ? undefined : selectedCategoryId
+
+            if (!searchTerm && !categoryId) {
+                setProducts(initialProducts)
+                setIsCatalogLoading(false)
+                return
+            }
+
+            try {
+                setIsCatalogLoading(true)
+                const result = await getPosProducts({
+                    searchQuery: searchTerm,
+                    categoryId,
+                    page: 1,
+                    limit: 48,
+                })
+
+                if (!cancelled) {
+                    const nextProducts = result.data || []
+                    setProducts(nextProducts)
+                    setKnownProducts((current) => mergeProducts(current, nextProducts))
+                }
+            } finally {
+                if (!cancelled) {
+                    setIsCatalogLoading(false)
+                }
+            }
         }
-        if (search) {
-            const lowerQuery = search.toLowerCase()
-            result = result.filter(p =>
-                p.title.toLowerCase().includes(lowerQuery) ||
-                p.product_variants?.some((v: any) => v.sku?.toLowerCase().includes(lowerQuery))
-            )
+
+        loadProducts()
+
+        return () => {
+            cancelled = true
         }
-        setProducts(result)
-    }, [search, selectedCategory, initialProducts])
+    }, [deferredSearch, initialProducts, selectedCategoryId])
+
+    useEffect(() => {
+        if (!selectedCustomer) {
+            return
+        }
+
+        setCustomerDetails({
+            fullName: [selectedCustomer.first_name, selectedCustomer.last_name].filter(Boolean).join(' ').trim(),
+            email: selectedCustomer.email || '',
+            phone: selectedCustomer.phone || '',
+        })
+    }, [selectedCustomer])
+
+    const getVariantStock = (variant: PosProductVariant) => {
+        return Number(variant.inventory_items?.[0]?.available_quantity ?? 0)
+    }
+
+    const getVariantPrice = (variant: PosProductVariant) => {
+        return Number(variant.price ?? 0)
+    }
 
 
     // Cart Logic
-    const addToCart = (product: any) => {
-        const targetVariant = product.product_variants?.[0]
-        if (!targetVariant) return alert("No variants available")
+    const addToCart = (product: PosProduct) => {
+        const targetVariant = product.product_variants.find((variant) => getVariantStock(variant) > 0) ?? product.product_variants[0]
+        if (!targetVariant) {
+            alert('No variants available')
+            return
+        }
+        if (getVariantStock(targetVariant) <= 0) {
+            alert('This item is out of stock')
+            return
+        }
 
         const existingItem = cart.find(item => item.variant_id === targetVariant.id)
         if (existingItem) {
+            if (existingItem.quantity >= getVariantStock(targetVariant)) {
+                alert('Cannot add more than available stock')
+                return
+            }
+
             setCart(cart.map(item =>
                 item.variant_id === targetVariant.id
                     ? { ...item, quantity: item.quantity + 1 }
                     : item
             ))
         } else {
-            const price = targetVariant.price || product.price || 0
+            const price = getVariantPrice(targetVariant)
             setCart([...cart, {
                 product_id: product.id,
                 variant_id: targetVariant.id,
                 title: product.title,
-                variant_title: targetVariant.title,
+                variant_title: targetVariant.sku ? `SKU ${targetVariant.sku}` : 'Default Variant',
                 sku: targetVariant.sku,
-                price: parseFloat(price),
+                price,
                 quantity: 1,
-                image: product.product_media?.[0]?.media_url
+                image: product.product_media?.[0]?.media_url ?? null
             }])
         }
     }
 
     const updateQuantity = (variantId: string, delta: number) => {
+        const variantStock = knownProducts
+            .flatMap((p) => p.product_variants)
+            .find((v) => v.id === variantId)
+        const stock = variantStock ? getVariantStock(variantStock) : undefined
+
         setCart(cart.map(item => {
             if (item.variant_id === variantId) {
                 const newQty = item.quantity + delta
+                if (stock !== undefined && newQty > stock) {
+                    return { ...item, quantity: stock }
+                }
                 return newQty > 0 ? { ...item, quantity: newQty } : item
             }
             return item
@@ -100,33 +178,63 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
     let discountAmount = discountType === 'fixed' ? discountValue : (subtotal * discountValue) / 100
     if (discountAmount > subtotal) discountAmount = subtotal
     const taxableAmount = subtotal - discountAmount
-    const taxRate = settings?.tax_rate || 0
+    const taxRate = Number(settings?.tax_rate || 0)
     const taxAmount = (taxableAmount * taxRate) / 100
     const grandTotal = taxableAmount + taxAmount
 
+    const handleCreateCustomer = async (input: {
+        first_name: string
+        last_name: string
+        email: string
+        phone: string
+    }) => {
+        const formData = new FormData()
+        formData.append('first_name', input.first_name)
+        formData.append('last_name', input.last_name)
+        formData.append('email', input.email)
+        formData.append('phone', input.phone)
+
+        const result = await createCustomer(formData)
+        if (result.customer) {
+            setCustomers((current) => [result.customer, ...current.filter((customer) => customer.id !== result.customer.id)])
+            setSelectedCustomer(result.customer)
+            setCustomerDetails({
+                fullName: [result.customer.first_name, result.customer.last_name].filter(Boolean).join(' ').trim(),
+                email: result.customer.email || '',
+                phone: result.customer.phone || '',
+            })
+        }
+
+        return result
+    }
+
 
     const handleCheckoutSubmit = async () => {
-        setIsProcessing(true)
+        if (cart.length === 0) {
+            return
+        }
+
+        if (paymentMethod === 'Cash' && (Number(amountTendered || 0) < grandTotal)) {
+            alert('Amount received is less than the total payable')
+            return
+        }
+        if (!customerDetails.fullName.trim() || !customerDetails.email.trim() || !customerDetails.phone.trim()) {
+            alert('Customer name, email, and phone are required for POS orders')
+            return
+        }
 
         // Open window before await to prevent popup blocker
         const invoiceWindow = window.open('about:blank', '_blank')
-
-        let customerId = selectedCustomer?.id
-
-        // Logic for Walk-in / Guest to be improved, but simplified here
-        if (!customerId) {
-            // If schema allows null, great. If strictly requires ID, we need a fallback.
-            // Assuming schema allows null for Guest or we have logic elsewhere.
-            // For now passing null if valid, or alert.
-            // Actually database `customer_id` is uuid referencing customers. It IS nullable?. 
-            // Let's assume nullable for Guest orders in POS.
-        }
+        setIsProcessing(true)
 
         const orderInput = {
-            customer_id: customerId, // undefined/null
+            customer_id: selectedCustomer?.id ?? null,
+            guest_name: customerDetails.fullName,
+            guest_email: customerDetails.email,
+            guest_phone: customerDetails.phone,
             payment_status: 'paid',
             total_amount: grandTotal,
-            status: 'delivered', // Complete
+            status: 'completed',
             // POS Fields
             discount_amount: discountAmount,
             tax_amount: taxAmount,
@@ -136,11 +244,13 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
             items: cart.map(item => ({
                 variant_id: item.variant_id,
                 quantity: item.quantity,
-                unit_price: item.price
+                unit_price: item.price,
+                title: item.title,
+                sku: item.sku ?? null,
             }))
         }
 
-        const res = await createOrder(orderInput as any) // TypeScript cast for now
+        const res = await createOrder(orderInput)
 
         if (res.success) {
             if (invoiceWindow) {
@@ -151,8 +261,10 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
             setCart([])
             setAmountTendered('')
             setNotes('')
+            setCustomerDetails({ fullName: '', email: '', phone: '' })
             setIsCheckoutOpen(false)
             setDiscountValue(0)
+            setSelectedCustomer(null)
             setIsMobileCartOpen(false)
         } else {
             if (invoiceWindow) invoiceWindow.close()
@@ -168,12 +280,13 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
             <div className={`h-full w-full lg:w-[65%] xl:w-[70%] flex flex-col transition-all duration-300`}>
                 <POSCatalog
                     products={products}
+                    isLoading={isCatalogLoading}
                     search={search}
                     setSearch={setSearch}
                     addToCart={addToCart}
                     categories={categories}
-                    selectedCategory={selectedCategory}
-                    setSelectedCategory={setSelectedCategory}
+                    selectedCategoryId={selectedCategoryId}
+                    setSelectedCategoryId={setSelectedCategoryId}
                 />
             </div>
 
@@ -192,9 +305,10 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
                     discountValue={discountValue}
                     setDiscountValue={setDiscountValue}
                     grandTotal={grandTotal}
-                    customers={initialCustomers}
+                    customers={customers}
                     selectedCustomer={selectedCustomer}
                     setSelectedCustomer={setSelectedCustomer}
+                    onCreateCustomer={handleCreateCustomer}
                     onCheckout={() => setIsCheckoutOpen(true)}
                 />
             </div>
@@ -241,9 +355,10 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
                                 discountValue={discountValue}
                                 setDiscountValue={setDiscountValue}
                                 grandTotal={grandTotal}
-                                customers={initialCustomers}
+                                customers={customers}
                                 selectedCustomer={selectedCustomer}
                                 setSelectedCustomer={setSelectedCustomer}
+                                onCreateCustomer={handleCreateCustomer}
                                 onCheckout={() => {
                                     setIsMobileCartOpen(false)
                                     setIsCheckoutOpen(true)
@@ -274,6 +389,34 @@ export default function POSShell({ initialProducts, initialCustomers, settings }
                             <div className="text-center py-4 bg-gray-50 rounded-2xl border border-gray-200">
                                 <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Total Payable</p>
                                 <p className="text-4xl font-black text-gray-900 tracking-tight">₹{grandTotal.toFixed(2)}</p>
+                            </div>
+
+                            {/* Payment Method Grid */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Customer Contact</label>
+                                <div className="grid gap-3">
+                                    <input
+                                        type="text"
+                                        value={customerDetails.fullName}
+                                        onChange={e => setCustomerDetails((current) => ({ ...current, fullName: e.target.value }))}
+                                        className="block w-full border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 sm:text-sm p-3 bg-white text-gray-900 placeholder:text-gray-400"
+                                        placeholder="Customer name"
+                                    />
+                                    <input
+                                        type="email"
+                                        value={customerDetails.email}
+                                        onChange={e => setCustomerDetails((current) => ({ ...current, email: e.target.value }))}
+                                        className="block w-full border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 sm:text-sm p-3 bg-white text-gray-900 placeholder:text-gray-400"
+                                        placeholder="Customer email"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={customerDetails.phone}
+                                        onChange={e => setCustomerDetails((current) => ({ ...current, phone: e.target.value }))}
+                                        className="block w-full border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 sm:text-sm p-3 bg-white text-gray-900 placeholder:text-gray-400"
+                                        placeholder="Customer phone"
+                                    />
+                                </div>
                             </div>
 
                             {/* Payment Method Grid */}

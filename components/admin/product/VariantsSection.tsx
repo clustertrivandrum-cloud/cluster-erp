@@ -120,6 +120,7 @@ export default function VariantsSection({
                             <ChevronRight className="w-4 h-4 text-gray-900 mr-1" />
                             Preview & Edit Variants
                         </h4>
+                        <p className="text-xs text-gray-600 mb-3">Set price, SKU, and on-hand quantity per variant. Parent product quantity is not used when variants exist.</p>
                         <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
                             <div className="overflow-x-auto">
                                 <table className="min-w-full divide-y divide-gray-200">
@@ -128,7 +129,7 @@ export default function VariantsSection({
                                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider pl-6">Variant</th>
                                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Price *</th>
                                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">SKU</th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Qty *</th>
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">On-hand Qty *</th>
                                             <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Images</th>
                                         </tr>
                                     </thead>
@@ -143,19 +144,22 @@ export default function VariantsSection({
                                                         <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
                                                             <span className="text-gray-500 sm:text-xs">₹</span>
                                                         </div>
-                                                        <input
-                                                            type="number"
-                                                            step="0.01"
-                                                            required
-                                                            value={variant.price}
-                                                            onChange={(e) => updateVariant(index, 'price', parseFloat(e.target.value))}
-                                                            className="block w-full pl-6 rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900 sm:text-sm py-1"
-                                                        />
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                                                    <input
-                                                        type="text"
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                required
+                                                value={variant.price}
+                                                onChange={(e) => {
+                                                    const next = e.target.value === '' ? 0 : parseFloat(e.target.value)
+                                                    updateVariant(index, 'price', isNaN(next) ? 0 : next)
+                                                }}
+                                                className="block w-full pl-6 rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900 sm:text-sm py-1"
+                                            />
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                                        <input
+                                            type="text"
                                                         value={variant.sku}
                                                         onChange={(e) => updateVariant(index, 'sku', e.target.value)}
                                                         className="block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900 sm:text-sm py-1"
@@ -166,7 +170,10 @@ export default function VariantsSection({
                                                         type="number"
                                                         required
                                                         value={variant.quantity}
-                                                        onChange={(e) => updateVariant(index, 'quantity', parseInt(e.target.value))}
+                                                        onChange={(e) => {
+                                                            const next = e.target.value === '' ? 0 : parseInt(e.target.value)
+                                                            updateVariant(index, 'quantity', isNaN(next) ? 0 : next)
+                                                        }}
                                                         className="block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900 sm:text-sm py-1"
                                                     />
                                                 </td>

@@ -1,11 +1,14 @@
 'use client'
 
-import { User, Plus, Minus, Trash2, X, ChevronUp, ShoppingBag, CreditCard, Banknote, Tag } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { User, Plus, Minus, Trash2, X, ShoppingBag, Tag } from 'lucide-react'
+import { useDeferredValue, useEffect, useState } from 'react'
+import Image from 'next/image'
+import type { PosCartItem, PosCustomer } from '@/lib/pos-types'
+import { getCustomers } from '@/lib/actions/order-actions'
 
 interface POSCartProps {
-    cart: any[]
-    removeFromCart: (vid: string) => void
+    cart: PosCartItem[]
+    removeFromCart: (variantId: string) => void
     updateQuantity: (vid: string, delta: number) => void
     subtotal: number
     taxAmount: number
@@ -15,9 +18,15 @@ interface POSCartProps {
     discountValue: number
     setDiscountValue: (v: number) => void
     grandTotal: number
-    customers: any[]
-    selectedCustomer: any
-    setSelectedCustomer: (c: any) => void
+    customers: PosCustomer[]
+    selectedCustomer: PosCustomer | null
+    setSelectedCustomer: (customer: PosCustomer | null) => void
+    onCreateCustomer: (input: {
+        first_name: string
+        last_name: string
+        email: string
+        phone: string
+    }) => Promise<{ success?: boolean; customer?: PosCustomer; error?: string }>
     onCheckout: () => void
 }
 
@@ -36,40 +45,197 @@ export default function POSCart({
     customers,
     selectedCustomer,
     setSelectedCustomer,
+    onCreateCustomer,
     onCheckout
 }: POSCartProps) {
     const [isCustomerSearchOpen, setIsCustomerSearchOpen] = useState(false)
+    const [isCreateCustomerOpen, setIsCreateCustomerOpen] = useState(false)
     const [custSearch, setCustSearch] = useState('')
+    const [searchResults, setSearchResults] = useState<PosCustomer[]>([])
+    const [newCustomer, setNewCustomer] = useState({ first_name: '', last_name: '', email: '', phone: '' })
+    const [customerFeedback, setCustomerFeedback] = useState<{ tone: 'error' | 'success'; text: string } | null>(null)
+    const [isSavingCustomer, setIsSavingCustomer] = useState(false)
+    const deferredCustomerSearch = useDeferredValue(custSearch)
 
-    // Filter customers for search dropdown
-    const filteredCustomers = custSearch
-        ? customers.filter(c =>
-            c.first_name?.toLowerCase().includes(custSearch.toLowerCase()) ||
-            c.phone?.includes(custSearch)
-        ).slice(0, 5)
-        : []
+    useEffect(() => {
+        let cancelled = false
+
+        const loadCustomers = async () => {
+            if (!isCustomerSearchOpen) {
+                return
+            }
+
+            const query = deferredCustomerSearch.trim()
+
+            if (!query) {
+                setSearchResults(customers.slice(0, 5))
+                return
+            }
+
+            const result = await getCustomers({ query, page: 1, limit: 5 })
+            if (!cancelled) {
+                setSearchResults(result.data || [])
+            }
+        }
+
+        loadCustomers()
+
+        return () => {
+            cancelled = true
+        }
+    }, [customers, deferredCustomerSearch, isCustomerSearchOpen])
+
+    const handleCreateCustomer = async () => {
+        if (!newCustomer.first_name.trim() || !newCustomer.email.trim() || !newCustomer.phone.trim()) {
+            setCustomerFeedback({ tone: 'error', text: 'First name, email, and phone are required.' })
+            return
+        }
+
+        setIsSavingCustomer(true)
+        setCustomerFeedback(null)
+        const result = await onCreateCustomer(newCustomer)
+        setIsSavingCustomer(false)
+
+        if (result.customer) {
+            setCustomerFeedback({ tone: 'success', text: 'Customer created and selected.' })
+            setIsCreateCustomerOpen(false)
+            setIsCustomerSearchOpen(false)
+            setCustSearch('')
+            setNewCustomer({ first_name: '', last_name: '', email: '', phone: '' })
+            return
+        }
+
+        setCustomerFeedback({ tone: 'error', text: result.error || 'Could not create customer.' })
+    }
+
+    const customerPicker = (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 p-3 z-50 animate-in fade-in slide-in-from-top-2">
+            {customerFeedback && (
+                <div className={`mb-3 rounded-xl border px-3 py-2 text-xs font-medium ${customerFeedback.tone === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                    {customerFeedback.text}
+                </div>
+            )}
+
+            {!isCreateCustomerOpen ? (
+                <>
+                    <input
+                        type="text"
+                        placeholder="Search Name or Phone..."
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm mb-2 focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 text-gray-900 placeholder:text-gray-400 font-medium"
+                        value={custSearch}
+                        onChange={e => setCustSearch(e.target.value)}
+                        autoFocus
+                    />
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setIsCreateCustomerOpen(true)
+                            setCustomerFeedback(null)
+                        }}
+                        className="mb-3 w-full rounded-xl border border-dashed border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-gray-900 hover:bg-gray-50"
+                    >
+                        + Create new customer
+                    </button>
+                    <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
+                        {searchResults.map(c => (
+                            <button
+                                key={c.id}
+                                onClick={() => {
+                                    setSelectedCustomer(c)
+                                    setIsCustomerSearchOpen(false)
+                                    setCustSearch('')
+                                }}
+                                className="w-full text-left p-3 hover:bg-gray-50 rounded-xl flex justify-between items-center transition-colors group"
+                            >
+                                <span className="font-bold text-gray-900 group-hover:text-black">{c.first_name} {c.last_name}</span>
+                                <span className="text-gray-500 text-xs font-mono bg-white px-1.5 py-0.5 rounded border border-gray-100">{c.phone}</span>
+                            </button>
+                        ))}
+                        {searchResults.length === 0 && custSearch && (
+                            <div className="p-4 text-center text-sm text-gray-400">No matching customer found</div>
+                        )}
+                    </div>
+                </>
+            ) : (
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-bold text-gray-900">New Customer</h4>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsCreateCustomerOpen(false)
+                                setCustomerFeedback(null)
+                            }}
+                            className="text-xs font-semibold text-gray-500 transition hover:text-gray-900"
+                        >
+                            Back to search
+                        </button>
+                    </div>
+                    <input
+                        type="text"
+                        value={newCustomer.first_name}
+                        onChange={(event) => setNewCustomer((current) => ({ ...current, first_name: event.target.value }))}
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/20"
+                        placeholder="First name"
+                    />
+                    <input
+                        type="text"
+                        value={newCustomer.last_name}
+                        onChange={(event) => setNewCustomer((current) => ({ ...current, last_name: event.target.value }))}
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/20"
+                        placeholder="Last name"
+                    />
+                    <input
+                        type="email"
+                        value={newCustomer.email}
+                        onChange={(event) => setNewCustomer((current) => ({ ...current, email: event.target.value }))}
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/20"
+                        placeholder="Email"
+                    />
+                    <input
+                        type="text"
+                        value={newCustomer.phone}
+                        onChange={(event) => setNewCustomer((current) => ({ ...current, phone: event.target.value }))}
+                        className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-900 focus:border-gray-900 focus:ring-2 focus:ring-gray-900/20"
+                        placeholder="Phone"
+                    />
+                    <button
+                        type="button"
+                        onClick={handleCreateCustomer}
+                        disabled={isSavingCustomer}
+                        className="w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-black disabled:opacity-70"
+                    >
+                        {isSavingCustomer ? 'Saving...' : 'Save Customer'}
+                    </button>
+                </div>
+            )}
+        </div>
+    )
 
     return (
         <div className="flex flex-col h-full bg-white shadow-xl relative z-20">
             {/* Customer Header */}
             <div className="p-4 border-b border-gray-100 bg-gray-50/50">
                 {selectedCustomer ? (
-                    <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-100 shadow-sm group hover:border-gray-300 transition-colors cursor-pointer" onClick={() => setIsCustomerSearchOpen(true)}> {/* Allow re-select */}
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-900 font-bold text-lg">
-                                {selectedCustomer.first_name[0]}
+                    <div className="relative">
+                        <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-100 shadow-sm group hover:border-gray-300 transition-colors cursor-pointer" onClick={() => setIsCustomerSearchOpen((current) => !current)}>
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-900 font-bold text-lg">
+                                    {(selectedCustomer.first_name || 'G')[0]}
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-gray-900">{selectedCustomer.first_name} {selectedCustomer.last_name}</h4>
+                                    <p className="text-xs text-gray-500 font-mono">{selectedCustomer.phone}</p>
+                                </div>
                             </div>
-                            <div>
-                                <h4 className="font-bold text-gray-900">{selectedCustomer.first_name} {selectedCustomer.last_name}</h4>
-                                <p className="text-xs text-gray-500 font-mono">{selectedCustomer.phone}</p>
-                            </div>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setSelectedCustomer(null); }}
+                                className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-xl transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
                         </div>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); setSelectedCustomer(null); }}
-                            className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-xl transition-colors"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
+                        {isCustomerSearchOpen && customerPicker}
                     </div>
                 ) : (
                     <div className="relative">
@@ -85,38 +251,7 @@ export default function POSCart({
                             </span>
                             <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded font-medium group-hover:bg-gray-200 group-hover:text-gray-900">Guest</span>
                         </button>
-
-                        {isCustomerSearchOpen && (
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 p-3 z-50 animate-in fade-in slide-in-from-top-2">
-                                <input
-                                    type="text"
-                                    placeholder="Search Name or Phone..."
-                                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm mb-2 focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 text-gray-900 placeholder:text-gray-400 font-medium"
-                                    value={custSearch}
-                                    onChange={e => setCustSearch(e.target.value)}
-                                    autoFocus
-                                />
-                                <div className="max-h-60 overflow-y-auto space-y-1 pr-1">
-                                    {filteredCustomers.map(c => (
-                                        <button
-                                            key={c.id}
-                                            onClick={() => {
-                                                setSelectedCustomer(c)
-                                                setIsCustomerSearchOpen(false)
-                                                setCustSearch('')
-                                            }}
-                                            className="w-full text-left p-3 hover:bg-gray-50 rounded-xl flex justify-between items-center transition-colors group"
-                                        >
-                                            <span className="font-bold text-gray-900 group-hover:text-black">{c.first_name} {c.last_name}</span>
-                                            <span className="text-gray-500 text-xs font-mono bg-white px-1.5 py-0.5 rounded border border-gray-100">{c.phone}</span>
-                                        </button>
-                                    ))}
-                                    {filteredCustomers.length === 0 && custSearch && (
-                                        <div className="p-4 text-center text-sm text-gray-400">No matching customer found</div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
+                        {isCustomerSearchOpen && customerPicker}
                     </div>
                 )}
             </div>
@@ -137,7 +272,7 @@ export default function POSCart({
                             {/* Image */}
                             <div className="w-16 h-16 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative">
                                 {item.image ? (
-                                    <img src={item.image} className="w-full h-full object-cover" />
+                                    <Image src={item.image} className="object-cover" alt={item.title} fill sizes="64px" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center">
                                         <ShoppingBag className="w-6 h-6 text-gray-200" />
@@ -170,6 +305,13 @@ export default function POSCart({
                                     <Plus className="w-4 h-4" />
                                 </button>
                             </div>
+                            <button
+                                onClick={() => removeFromCart(item.variant_id)}
+                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                                aria-label={`Remove ${item.title}`}
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
                         </div>
                     ))
                 )}

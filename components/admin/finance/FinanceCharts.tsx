@@ -2,8 +2,15 @@
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
 
+interface FinanceChartRow {
+    date: string
+    label: string
+    revenue: number
+    expense: number
+}
+
 interface FinanceChartsProps {
-    data: any[]
+    data: FinanceChartRow[]
 }
 
 export default function FinanceCharts({ data }: FinanceChartsProps) {
@@ -30,7 +37,7 @@ export default function FinanceCharts({ data }: FinanceChartsProps) {
                         />
                         <Tooltip
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                            formatter={(value: any) => [`₹${Number(value).toLocaleString()}`, undefined]}
+                            formatter={(value: number | string) => [`₹${Number(value).toLocaleString()}`, undefined]}
                         />
                         <Legend wrapperStyle={{ paddingTop: '20px' }} />
                         <Bar
