@@ -39,7 +39,7 @@ export default function DetailsSection({ customizationTemplate, setCustomization
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <Input
                         label="Origin"
-                        name="origin"
+                        name="origin_country"
                         type="text"
                         placeholder="e.g. India"
                         defaultValue={initialData?.origin_country}

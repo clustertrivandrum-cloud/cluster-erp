@@ -20,15 +20,27 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
     const [loading, setLoading] = useState(false)
     const [currentStep, setCurrentStep] = useState(1)
     const [images, setImages] = useState<string[]>(initialProduct?.product_media?.map((m: any) => m.media_url) || [])
-    const [options, setOptions] = useState<Option[]>(initialProduct?.product_options || [])
+    const [options, setOptions] = useState<Option[]>(() => {
+        if (!initialProduct?.product_options) return []
+        return initialProduct.product_options.map((option: any) => ({
+            id: option.id,
+            name: option.name || '',
+            values: option.values || option.product_option_values?.map((value: any) => value.value).filter(Boolean) || [],
+        }))
+    })
     const [variants, setVariants] = useState<Variant[]>(() => {
         if (!initialProduct) return []
         return initialProduct.product_variants?.map((v: any) => ({
             ...v,
-            quantity: v.inventory_items?.[0]?.available_quantity || 0,
-            reorder_point: v.inventory_items?.[0]?.reorder_point || 10,
+            sku: v.sku ?? '',
+            barcode: v.barcode ?? '',
+            price: Number(v.price ?? 0),
+            compare_at_price: v.compare_at_price ?? null,
+            cost_price: v.cost_price ?? null,
+            quantity: Number(v.inventory_items?.[0]?.available_quantity ?? 0),
+            reorder_point: Number(v.inventory_items?.[0]?.reorder_point ?? 10),
             bin_location: v.inventory_items?.[0]?.bin_location || '',
-            images: v.variant_media?.map((m: any) => m.media_url) || []
+            images: v.variant_media?.map((m: any) => m.media_url).filter(Boolean) || []
         })) || []
     })
     const [categories, setCategories] = useState<{ id: string, name: string, parent_id: string | null }[]>([])

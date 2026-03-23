@@ -100,7 +100,6 @@ export default function VariantsSection({
                                                 />
                                                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">↵</span>
                                             </div>
-```
                                         </div>
                                     </div>
                                 </div>

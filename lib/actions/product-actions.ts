@@ -7,6 +7,16 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { logAudit } from '@/lib/audit'
 
+const NullishOptionalStringSchema = z.preprocess(
+    (value) => (value === null || value === undefined ? undefined : value),
+    z.string().trim().optional()
+)
+
+const NullishUuidSchema = z.preprocess(
+    (value) => (value === '' || value === null || value === undefined ? null : value),
+    z.string().uuid().nullable().optional()
+)
+
 const BaseProductSchema = z.object({
     title: z.string().min(1, 'Title is required'),
     slug: z.string().min(1, 'Slug is required'),
@@ -15,8 +25,8 @@ const BaseProductSchema = z.object({
     cost_price: z.coerce.number().nonnegative().nullable().optional(),
     quantity: z.coerce.number().int().nonnegative().default(0),
     reorder_point: z.coerce.number().int().nonnegative().default(10),
-    category_id: z.string().uuid().nullable().optional(),
-    sku: z.string().trim().min(0).optional(),
+    category_id: NullishUuidSchema,
+    sku: NullishOptionalStringSchema,
 })
 
 const normalizeSku = (value?: string | null) => {
@@ -51,6 +61,349 @@ const toInt = (value?: string | number | null, fallback = 0) => {
     return Number.isFinite(parsed) ? parsed : fallback
 }
 
+const normalizeOptions = (options: ProductOptionInput[] = []) => {
+    return options
+        .map((option) => ({
+            id: option.id,
+            name: (option.name || '').trim(),
+            values: Array.isArray(option.values)
+                ? option.values.map((value) => (value || '').trim()).filter(Boolean)
+                : [],
+        }))
+        .filter((option) => option.name.length > 0 && option.values.length > 0)
+}
+
+const normalizeVariants = (variants: ProductVariantInput[] = []) => {
+    return variants.map((variant) => ({
+        ...variant,
+        sku: typeof variant.sku === 'string' ? variant.sku : null,
+        barcode: typeof variant.barcode === 'string' ? variant.barcode : null,
+        bin_location: typeof variant.bin_location === 'string' ? variant.bin_location : null,
+        weight_unit: typeof variant.weight_unit === 'string' ? variant.weight_unit : null,
+        dimension_unit: typeof variant.dimension_unit === 'string' ? variant.dimension_unit : null,
+        images: Array.isArray(variant.images)
+            ? variant.images.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+            : [],
+    }))
+}
+
+const parseProductPayload = (formData: FormData) => {
+    const optionsJSON = formData.get('options')
+    const variantsJSON = formData.get('variants')
+
+    let options: ProductOptionInput[] = []
+    let variants: ProductVariantInput[] = []
+
+    try {
+        if (typeof optionsJSON === 'string' && optionsJSON) {
+            options = normalizeOptions(JSON.parse(optionsJSON))
+        }
+
+        if (typeof variantsJSON === 'string' && variantsJSON) {
+            variants = normalizeVariants(JSON.parse(variantsJSON))
+        }
+    } catch (error) {
+        console.error('Error parsing options/variants JSON', error)
+    }
+
+    return { options, variants }
+}
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error && error.message) {
+        return error.message
+    }
+
+    if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
+        return error.message
+    }
+
+    return fallback
+}
+
+const getDefaultLocationId = async (supabase: Awaited<ReturnType<typeof createClient>>) => {
+    const { data: location, error } = await supabase.from('locations').select('id').limit(1).single()
+
+    if (error) {
+        console.error('Error fetching default location:', error)
+        return null
+    }
+
+    return location?.id ?? null
+}
+
+async function syncVariantInventory(
+    supabase: Awaited<ReturnType<typeof createClient>>,
+    variantId: string,
+    locationId: string | null,
+    quantity: string | number | null | undefined,
+    reorderPoint: string | number | null | undefined,
+    binLocation: string | null | undefined
+) {
+    if (!locationId) {
+        return
+    }
+
+    const { data: existingInventory, error: existingInventoryError } = await supabase
+        .from('inventory_items')
+        .select('id')
+        .eq('variant_id', variantId)
+        .eq('location_id', locationId)
+        .single()
+
+    if (existingInventoryError && existingInventoryError.code !== 'PGRST116') {
+        throw existingInventoryError
+    }
+
+    const inventoryPayload = {
+        variant_id: variantId,
+        location_id: locationId,
+        available_quantity: toInt(quantity, 0),
+        reorder_point: toInt(reorderPoint, 10),
+        bin_location: binLocation || null,
+    }
+
+    if (existingInventory?.id) {
+        const { error } = await supabase
+            .from('inventory_items')
+            .update({
+                available_quantity: inventoryPayload.available_quantity,
+                reorder_point: inventoryPayload.reorder_point,
+                bin_location: inventoryPayload.bin_location,
+            })
+            .eq('id', existingInventory.id)
+
+        if (error) {
+            throw error
+        }
+
+        return
+    }
+
+    const { error } = await supabase.from('inventory_items').insert(inventoryPayload)
+
+    if (error) {
+        throw error
+    }
+}
+
+async function syncVariantMedia(
+    supabase: Awaited<ReturnType<typeof createClient>>,
+    variantId: string,
+    images: string[] = []
+) {
+    const { error: deleteError } = await supabase.from('variant_media').delete().eq('variant_id', variantId)
+
+    if (deleteError) {
+        throw deleteError
+    }
+
+    if (images.length === 0) {
+        return
+    }
+
+    const mediaInserts = images.map((url, index) => ({
+        variant_id: variantId,
+        media_url: url,
+        position: index + 1,
+    }))
+
+    const { error } = await supabase.from('variant_media').insert(mediaInserts)
+
+    if (error) {
+        throw error
+    }
+}
+
+async function syncProductOptionsAndVariants(
+    supabase: Awaited<ReturnType<typeof createClient>>,
+    productId: string,
+    options: ProductOptionInput[],
+    variants: ProductVariantInput[]
+) {
+    const { data: existingOptions, error: existingOptionsError } = await supabase
+        .from('product_options')
+        .select(`
+            id,
+            name,
+            product_option_values (
+                id,
+                value
+            )
+        `)
+        .eq('product_id', productId)
+
+    if (existingOptionsError) {
+        throw existingOptionsError
+    }
+
+    const { data: existingVariants, error: existingVariantsError } = await supabase
+        .from('product_variants')
+        .select('id')
+        .eq('product_id', productId)
+
+    if (existingVariantsError) {
+        throw existingVariantsError
+    }
+
+    const optionRows = (existingOptions || []) as ExistingOptionRow[]
+    const variantRows = (existingVariants || []) as ExistingVariantRow[]
+    const optionValueLookup = new Map<string, string>()
+    const syncedOptionIds = new Set<string>()
+    const syncedVariantIds = new Set<string>()
+    const locationId = await getDefaultLocationId(supabase)
+
+    for (let optionIndex = 0; optionIndex < options.length; optionIndex += 1) {
+        const option = options[optionIndex]
+        const matchingOption = optionRows.find((row) => row.id === option.id) || optionRows.find((row) => row.name === option.name)
+
+        const optionPayload = {
+            ...(matchingOption?.id ? { id: matchingOption.id } : {}),
+            product_id: productId,
+            name: option.name,
+            position: optionIndex + 1,
+        }
+
+        const { data: savedOption, error: optionError } = await supabase
+            .from('product_options')
+            .upsert(optionPayload)
+            .select('id, name')
+            .single()
+
+        if (optionError || !savedOption) {
+            throw optionError || new Error(`Unable to save option ${option.name}.`)
+        }
+
+        syncedOptionIds.add(savedOption.id)
+
+        const existingValues = matchingOption?.product_option_values || []
+        const syncedValueIds = new Set<string>()
+
+        for (let valueIndex = 0; valueIndex < option.values.length; valueIndex += 1) {
+            const value = option.values[valueIndex]
+            const matchingValue = existingValues.find((row) => row.value === value)
+            const valuePayload = {
+                ...(matchingValue?.id ? { id: matchingValue.id } : {}),
+                option_id: savedOption.id,
+                value,
+                position: valueIndex + 1,
+            }
+
+            const { data: savedValue, error: valueError } = await supabase
+                .from('product_option_values')
+                .upsert(valuePayload)
+                .select('id, value')
+                .single()
+
+            if (valueError || !savedValue) {
+                throw valueError || new Error(`Unable to save option value ${value}.`)
+            }
+
+            syncedValueIds.add(savedValue.id)
+            optionValueLookup.set(`${savedOption.name}::${savedValue.value}`, savedValue.id)
+        }
+
+        const removedValueIds = existingValues
+            .map((row) => row.id)
+            .filter((id) => !syncedValueIds.has(id))
+
+        if (removedValueIds.length > 0) {
+            const { error } = await supabase.from('product_option_values').delete().in('id', removedValueIds)
+            if (error) {
+                throw error
+            }
+        }
+    }
+
+    const removedOptionIds = optionRows
+        .map((row) => row.id)
+        .filter((id) => !syncedOptionIds.has(id))
+
+    if (removedOptionIds.length > 0) {
+        const { error } = await supabase.from('product_options').delete().in('id', removedOptionIds)
+        if (error) {
+            throw error
+        }
+    }
+
+    for (const variant of variants) {
+        const variantPayload = {
+            ...(variant.id ? { id: variant.id } : {}),
+            product_id: productId,
+            sku: normalizeSku(variant.sku),
+            barcode: variant.barcode || null,
+            price: Math.max(0, toFloat(variant.price)),
+            compare_at_price: toNullableFloat(variant.compare_at_price),
+            cost_price: toNullableFloat(variant.cost_price),
+            weight_value: toNullableFloat(variant.weight_value),
+            weight_unit: variant.weight_unit || 'g',
+            dimension_length: toNullableFloat(variant.dimension_length),
+            dimension_width: toNullableFloat(variant.dimension_width),
+            dimension_height: toNullableFloat(variant.dimension_height),
+            dimension_unit: variant.dimension_unit || 'cm',
+            is_active: true,
+        }
+
+        const { data: savedVariant, error: variantError } = await supabase
+            .from('product_variants')
+            .upsert(variantPayload)
+            .select('id')
+            .single()
+
+        if (variantError || !savedVariant) {
+            throw variantError || new Error(`Unable to save variant ${variant.id || variant.sku || ''}.`)
+        }
+
+        syncedVariantIds.add(savedVariant.id)
+
+        const { error: deleteLinksError } = await supabase
+            .from('variant_option_values')
+            .delete()
+            .eq('variant_id', savedVariant.id)
+
+        if (deleteLinksError) {
+            throw deleteLinksError
+        }
+
+        const optionLinks = Object.entries(variant.options || {})
+            .map(([optionName, optionValue]) => optionValueLookup.get(`${optionName}::${optionValue}`))
+            .filter((valueId): valueId is string => Boolean(valueId))
+            .map((valueId) => ({
+                variant_id: savedVariant.id,
+                option_value_id: valueId,
+            }))
+
+        if (optionLinks.length > 0) {
+            const { error } = await supabase.from('variant_option_values').insert(optionLinks)
+            if (error) {
+                throw error
+            }
+        }
+
+        await syncVariantInventory(
+            supabase,
+            savedVariant.id,
+            locationId,
+            variant.quantity,
+            variant.reorder_point,
+            variant.bin_location
+        )
+
+        await syncVariantMedia(supabase, savedVariant.id, variant.images)
+    }
+
+    const removedVariantIds = variantRows
+        .map((row) => row.id)
+        .filter((id) => !syncedVariantIds.has(id))
+
+    if (removedVariantIds.length > 0) {
+        const { error } = await supabase.from('product_variants').delete().in('id', removedVariantIds)
+        if (error) {
+            throw error
+        }
+    }
+}
+
 type ProductOptionInput = {
     id?: string
     name: string
@@ -75,6 +428,19 @@ type ProductVariantInput = {
     dimension_height?: string | number | null
     dimension_unit?: string | null
     images?: string[]
+}
+
+type ExistingOptionRow = {
+    id: string
+    name: string
+    product_option_values?: Array<{
+        id: string
+        value: string
+    }> | null
+}
+
+type ExistingVariantRow = {
+    id: string
 }
 
 type SearchVariantsProductRow = {
@@ -181,6 +547,7 @@ export async function deleteProduct(id: string) {
 export async function createProduct(formData: FormData) {
     await requireActionPermission('manage_products')
     const supabase = await createClient()
+    const { options, variants } = parseProductPayload(formData)
 
     const parsed = BaseProductSchema.safeParse({
         title: formData.get('title'),
@@ -239,143 +606,17 @@ export async function createProduct(formData: FormData) {
         return { error: error.message }
     }
 
-    // Parse Options and Variants
-    const optionsJSON = formData.get('options') as string
-    const variantsJSON = formData.get('variants') as string
-
-    let options: ProductOptionInput[] = []
-    let variants: ProductVariantInput[] = []
-
-    try {
-        if (optionsJSON) options = JSON.parse(optionsJSON)
-        if (variantsJSON) variants = JSON.parse(variantsJSON)
-    } catch (e) {
-        console.error("Error parsing options/variants JSON", e)
-    }
-
     // Basic logic: If we have options, we create them and the variants.
     // If NOT, we create a default single variant (Simple Product).
 
     if (options.length > 0 && variants.length > 0) {
-        // --- COMPLEX PRODUCT WITH VARIANTS ---
-
-        // A. Insert Options & Values
-        // Map: OptionName -> { option_id, valueMap: { ValueName -> value_id } }
-        const optionMap: Record<string, { id: string, values: Record<string, string> }> = {}
-
-        for (const opt of options) {
-            // Create Option
-            const { data: newOption, error: optError } = await supabase
-                .from('product_options')
-                .insert({ product_id: newProduct.id, name: opt.name })
-                .select()
-                .single()
-
-            if (optError || !newOption) {
-                console.error("Error creating option:", optError)
-                continue
-            }
-
-            optionMap[opt.name] = { id: newOption.id, values: {} }
-
-            // Create Values for this Option
-            for (const val of opt.values) {
-                const { data: newVal, error: valError } = await supabase
-                    .from('product_option_values')
-                    .insert({ option_id: newOption.id, value: val })
-                    .select()
-                    .single()
-
-                if (valError || !newVal) {
-                    console.error("Error creating option value:", valError)
-                    continue
-                }
-
-                optionMap[opt.name].values[val] = newVal.id
-            }
+        try {
+            await syncProductOptionsAndVariants(supabase, newProduct.id, options, variants)
+        } catch (error: unknown) {
+            console.error('Error creating product variants:', error)
+            await supabase.from('products').delete().eq('id', newProduct.id)
+            return { error: getErrorMessage(error, 'Unable to save product variants.') }
         }
-
-        // B. Insert Variants
-        // Use a default location for inventory
-        const { data: location } = await supabase.from('locations').select('id').limit(1).single()
-
-        for (const v of variants) {
-            const variantData = {
-                product_id: newProduct.id,
-                sku: normalizeSku(v.sku), // Let DB generate if blank
-                barcode: v.barcode || null,
-                price: toFloat(v.price),
-                compare_at_price: toNullableFloat(v.compare_at_price),
-                cost_price: toNullableFloat(v.cost_price),
-                // Logistics
-                weight_value: toNullableFloat(v.weight_value),
-                weight_unit: v.weight_unit || 'g',
-                dimension_length: toNullableFloat(v.dimension_length),
-                dimension_width: toNullableFloat(v.dimension_width),
-                dimension_height: toNullableFloat(v.dimension_height),
-                dimension_unit: v.dimension_unit || 'cm',
-                is_active: true
-            }
-
-            const { data: newVariant, error: varError } = await supabase
-                .from('product_variants')
-                .insert(variantData)
-                .select()
-                .single()
-
-            if (varError || !newVariant) {
-                console.error("Error creating variant:", varError)
-                continue
-            }
-
-            // C. Link Variant to Option Values
-            // v.options is like { "Color": "Red", "Size": "S" }
-            const linkInserts = []
-            for (const [optName, optVal] of Object.entries(v.options || {})) {
-                // Find value_id
-                const valueId = optionMap[optName]?.values[optVal as string]
-                if (valueId) {
-                    linkInserts.push({
-                        variant_id: newVariant.id,
-                        option_value_id: valueId
-                    })
-                }
-            }
-
-            if (linkInserts.length > 0) {
-                await supabase.from('variant_option_values').insert(linkInserts)
-            }
-
-        // D. Inventory (default location only for now)
-        if (location) {
-            await supabase.from('inventory_items').insert({
-                variant_id: newVariant.id,
-                location_id: location.id,
-                available_quantity: toInt(v.quantity, 0),
-                reorder_point: toInt(v.reorder_point, 10),
-                bin_location: v.bin_location || null
-            })
-        }
-
-            // E. Variant Images
-            if (v.images && v.images.length > 0) {
-                const mediaInserts = v.images.map((url: string, index: number) => ({
-                    variant_id: newVariant.id,
-                    media_url: url,
-                    position: index + 1
-                }))
-
-                const { error: mediaError } = await supabase
-                    .from('variant_media')
-                    .insert(mediaInserts)
-
-                if (mediaError) {
-                    console.error('Error adding variant media:', mediaError)
-                }
-            }
-        }
-
-
     } else {
         // --- SIMPLE PRODUCT (DEFAULT VARIANT) ---
         const variant = {
@@ -554,10 +795,14 @@ export async function getProductById(id: string) {
         .select(`
             *,
             product_media (*),
-            product_options (*),
+            product_options (
+                *,
+                product_option_values (*)
+            ),
             product_variants (
                 *,
-                inventory_items (*)
+                inventory_items (*),
+                variant_media (*)
             )
         `)
         .eq('id', id)
@@ -581,6 +826,7 @@ export async function getProductById(id: string) {
 export async function updateProduct(id: string, formData: FormData) {
     await requireActionPermission('manage_products')
     const supabase = await createClient()
+    const { options, variants } = parseProductPayload(formData)
 
     const parsed = BaseProductSchema.safeParse({
         title: formData.get('title'),
@@ -627,89 +873,12 @@ export async function updateProduct(id: string, formData: FormData) {
     const { error } = await supabase.from('products').update(product).eq('id', id)
     if (error) return { error: error.message }
 
-    const optionsJSON = formData.get('options') as string
-    const variantsJSON = formData.get('variants') as string
-    let options: ProductOptionInput[] = []
-    let variants: ProductVariantInput[] = []
-
-    try {
-        if (optionsJSON) options = JSON.parse(optionsJSON)
-        if (variantsJSON) variants = JSON.parse(variantsJSON)
-    } catch (e) {
-        console.error("Error parsing options/variants JSON", e)
-    }
-
     if (options.length > 0) {
-        const optionInserts = options.map((opt, index: number) => ({
-            id: opt.id,
-            product_id: id,
-            name: opt.name,
-            position: index + 1,
-            values: opt.values
-        }))
-
-        // Delete removed options
-        const optionIds = options.map(o => o.id).filter(Boolean)
-        if (optionIds.length > 0) {
-            await supabase.from('product_options').delete().eq('product_id', id).not('id', 'in', `(${optionIds.join(',')})`)
-        } else {
-            await supabase.from('product_options').delete().eq('product_id', id)
-        }
-        await supabase.from('product_options').upsert(optionInserts)
-
-        // Delete removed variants
-        const variantIds = variants.map(v => v.id).filter(Boolean)
-        if (variantIds.length > 0) {
-            await supabase.from('product_variants').delete().eq('product_id', id).not('id', 'in', `(${variantIds.join(',')})`)
-        } else {
-            await supabase.from('product_variants').delete().eq('product_id', id)
-        }
-
-        for (const v of variants) {
-            const variantUpsert = {
-                id: v.id,
-                product_id: id,
-                sku: normalizeSku(v.sku),
-                barcode: v.barcode || null,
-                price: Math.max(0, toFloat(v.price)),
-                compare_at_price: v.compare_at_price ? Math.max(0, toFloat(v.compare_at_price)) : null,
-                cost_price: v.cost_price ? Math.max(0, toFloat(v.cost_price)) : null,
-                options: v.options,
-                weight_value: toNullableFloat(v.weight_value),
-                weight_unit: v.weight_unit || 'g',
-            }
-
-            const { data: upsertedVariant, error: variantError } = await supabase
-                .from('product_variants')
-                .upsert(variantUpsert)
-                .select()
-                .single()
-
-            if (variantError || !upsertedVariant) continue
-
-            if (v.quantity !== undefined && v.quantity !== null) {
-                const { data: location } = await supabase.from('locations').select('id').limit(1).single()
-                if (location) {
-                    // Check if inventory exists
-                    const { data: existingInv } = await supabase.from('inventory_items').select('id').eq('variant_id', upsertedVariant.id).eq('location_id', location.id).single()
-
-                    if (existingInv) {
-                        await supabase.from('inventory_items').update({
-                            available_quantity: v.quantity,
-                            reorder_point: v.reorder_point || 10,
-                            bin_location: v.bin_location || null
-                        }).eq('id', existingInv.id)
-                    } else {
-                        await supabase.from('inventory_items').insert({
-                            variant_id: upsertedVariant.id,
-                            location_id: location.id,
-                            available_quantity: v.quantity,
-                            reorder_point: v.reorder_point || 10,
-                            bin_location: v.bin_location || null
-                        })
-                    }
-                }
-            }
+        try {
+            await syncProductOptionsAndVariants(supabase, id, options, variants)
+        } catch (error: unknown) {
+            console.error('Error updating product variants:', error)
+            return { error: getErrorMessage(error, 'Unable to update product variants.') }
         }
     } else {
         // Simple product
