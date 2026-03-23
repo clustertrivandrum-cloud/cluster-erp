@@ -17,9 +17,20 @@ const NullishUuidSchema = z.preprocess(
     z.string().uuid().nullable().optional()
 )
 
+const normalizeProductSlug = (value?: string | null) => {
+    return (value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+}
+
 const BaseProductSchema = z.object({
     title: z.string().min(1, 'Title is required'),
-    slug: z.string().min(1, 'Slug is required'),
+    slug: z.preprocess(
+        (value) => normalizeProductSlug(typeof value === 'string' ? value : null),
+        z.string().min(1, 'Slug is required')
+    ),
     price: z.coerce.number().nonnegative('Price must be ≥ 0'),
     compare_at_price: z.coerce.number().nonnegative().nullable().optional(),
     cost_price: z.coerce.number().nonnegative().nullable().optional(),
@@ -567,7 +578,7 @@ export async function createProduct(formData: FormData) {
 
     const product = {
         title: formData.get('title') as string,
-        slug: formData.get('slug') as string,
+        slug: parsed.data.slug,
         description: formData.get('description') as string,
 
         category_id: formData.get('category_id') as string || null,
@@ -857,7 +868,7 @@ export async function updateProduct(id: string, formData: FormData) {
 
     const product = {
         title: formData.get('title') as string,
-        slug: formData.get('slug') as string,
+        slug: parsed.data.slug,
         description: formData.get('description') as string,
         category_id: formData.get('category_id') as string || null,
         tags: formData.get('tags') ? (formData.get('tags') as string).split(',').map(t => t.trim()) : [],
