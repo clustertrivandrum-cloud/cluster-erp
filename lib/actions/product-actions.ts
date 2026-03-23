@@ -802,7 +802,18 @@ export async function getProductById(id: string) {
             product_variants (
                 *,
                 inventory_items (*),
-                variant_media (*)
+                variant_media (*),
+                variant_option_values (
+                    option_value_id,
+                    product_option_values (
+                        id,
+                        value,
+                        option_id,
+                        product_options (
+                            name
+                        )
+                    )
+                )
             )
         `)
         .eq('id', id)

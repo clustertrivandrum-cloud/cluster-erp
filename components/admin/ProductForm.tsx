@@ -22,16 +22,42 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
     const [images, setImages] = useState<string[]>(initialProduct?.product_media?.map((m: any) => m.media_url) || [])
     const [options, setOptions] = useState<Option[]>(() => {
         if (!initialProduct?.product_options) return []
-        return initialProduct.product_options.map((option: any) => ({
+        return initialProduct.product_options
+            .slice()
+            .sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
+            .map((option: any) => ({
             id: option.id,
             name: option.name || '',
-            values: option.values || option.product_option_values?.map((value: any) => value.value).filter(Boolean) || [],
+            values: option.values || option.product_option_values
+                ?.slice()
+                .sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
+                .map((value: any) => value.value)
+                .filter(Boolean) || [],
         }))
     })
     const [variants, setVariants] = useState<Variant[]>(() => {
         if (!initialProduct) return []
-        return initialProduct.product_variants?.map((v: any) => ({
+        return initialProduct.product_variants?.map((v: any) => {
+            const optionEntries = (v.variant_option_values || [])
+                .map((link: any) => {
+                    const optionName = link.product_option_values?.product_options?.name
+                    const optionValue = link.product_option_values?.value
+
+                    if (!optionName || !optionValue) {
+                        return null
+                    }
+
+                    return [optionName, optionValue] as const
+                })
+                .filter(Boolean) as Array<readonly [string, string]>
+
+            const optionMap = Object.fromEntries(optionEntries)
+            const title = optionEntries.map(([, value]) => value).join(' / ') || v.sku || 'Variant'
+
+            return ({
             ...v,
+            title,
+            options: optionMap,
             sku: v.sku ?? '',
             barcode: v.barcode ?? '',
             price: Number(v.price ?? 0),
@@ -40,8 +66,13 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
             quantity: Number(v.inventory_items?.[0]?.available_quantity ?? 0),
             reorder_point: Number(v.inventory_items?.[0]?.reorder_point ?? 10),
             bin_location: v.inventory_items?.[0]?.bin_location || '',
-            images: v.variant_media?.map((m: any) => m.media_url).filter(Boolean) || []
-        })) || []
+            images: v.variant_media
+                ?.slice()
+                .sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
+                .map((m: any) => m.media_url)
+                .filter(Boolean) || []
+        })
+        }) || []
     })
     const [categories, setCategories] = useState<{ id: string, name: string, parent_id: string | null }[]>([])
     const [selectedParentId, setSelectedParentId] = useState<string>('')
