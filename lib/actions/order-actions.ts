@@ -93,12 +93,16 @@ type LegacyOrderAddressRow = {
 }
 
 type OrderInsertCandidate = Record<string, string | number | null>
-type OrderItemInsertCandidate = Record<string, string | number>
+type OrderItemInsertCandidate = Record<string, string | number | null | Array<unknown>>
 type OrderStatusUpdateCandidate = Record<string, string>
 type OrderUpdateCandidate = Record<string, string | number | null | string[] | Record<string, unknown>>
 
 type OrderItemSchemaCapabilities = {
     hasDiscountAmount: boolean
+    hasProductSlug: boolean
+    hasImageUrl: boolean
+    hasVariantTitle: boolean
+    hasVariantOptions: boolean
 }
 
 export type EditableOrderHeaderInput = {
@@ -133,6 +137,10 @@ export type EditableOrderLineInput = {
     discountAmount?: number
     title?: string
     sku?: string | null
+    productSlug?: string | null
+    imageUrl?: string | null
+    variantTitle?: string | null
+    variantOptions?: Array<{ name: string; value: string }>
 }
 
 export type OrderTimelineEntry = {
@@ -287,6 +295,10 @@ const ORDER_COLUMN_PROBES = [
 
 const ORDER_ITEM_COLUMN_PROBES = [
     'discount_amount',
+    'product_slug',
+    'image_url',
+    'variant_title',
+    'variant_options',
 ] as const
 
 const getOrderSchemaCapabilities = cache(async (): Promise<OrderSchemaCapabilities> => {
@@ -350,6 +362,10 @@ const getOrderItemSchemaCapabilities = cache(async (): Promise<OrderItemSchemaCa
 
     return {
         hasDiscountAmount: available.has('discount_amount'),
+        hasProductSlug: available.has('product_slug'),
+        hasImageUrl: available.has('image_url'),
+        hasVariantTitle: available.has('variant_title'),
+        hasVariantOptions: available.has('variant_options'),
     }
 })
 
@@ -362,6 +378,49 @@ function getStringField(order: Record<string, unknown>, ...keys: string[]) {
     }
 
     return null
+}
+
+function buildVariantOptionSnapshot(
+    variantOptionValues?: Array<{
+        product_option_values?: {
+            value?: string | null
+            product_options?: { name?: string | null } | Array<{ name?: string | null }> | null
+        } | Array<{
+            value?: string | null
+            product_options?: { name?: string | null } | Array<{ name?: string | null }> | null
+        }> | null
+    }> | null
+) {
+    return (variantOptionValues || [])
+        .map((entry) => {
+            const optionValueRow = Array.isArray(entry.product_option_values)
+                ? entry.product_option_values[0]
+                : entry.product_option_values
+            const optionRow = Array.isArray(optionValueRow?.product_options)
+                ? optionValueRow?.product_options[0]
+                : optionValueRow?.product_options
+            const optionName = optionRow?.name
+            const optionValue = optionValueRow?.value
+
+            if (!optionName || !optionValue) {
+                return null
+            }
+
+            return { name: optionName, value: optionValue }
+        })
+        .filter((entry): entry is { name: string; value: string } => Boolean(entry))
+}
+
+function buildVariantLabelFromSnapshot(variantTitle?: string | null, options: Array<{ name: string; value: string }> = []) {
+    if (variantTitle && variantTitle !== 'Default Variant') {
+        return variantTitle
+    }
+
+    if (options.length === 0) {
+        return 'Default Variant'
+    }
+
+    return options.map((option) => `${option.name}: ${option.value}`).join(' / ')
 }
 
 function getObjectField(order: Record<string, unknown>, key: string) {
@@ -1427,10 +1486,21 @@ async function loadEditableVariantMap(variantIds: string[]) {
     const variantMap = new Map<string, {
         id: string
         sku?: string | null
+        title?: string | null
         price?: number | null
         is_active?: boolean | null
-        products?: { title?: string | null; status?: string | null } | null
-        inventory_items?: Array<{ available_quantity?: number | null }> | null
+        products?: { title?: string | null; slug?: string | null; status?: string | null; product_media?: Array<{ media_url?: string | null }> | null } | null
+        inventory_items?: Array<{ available_quantity?: number | null; reserved_quantity?: number | null }> | null
+        variant_media?: Array<{ media_url?: string | null; position?: number | null }> | null
+        variant_option_values?: Array<{
+            product_option_values?: {
+                value?: string | null
+                product_options?: { name?: string | null } | Array<{ name?: string | null }> | null
+            } | Array<{
+                value?: string | null
+                product_options?: { name?: string | null } | Array<{ name?: string | null }> | null
+            }> | null
+        }> | null
     }>()
 
     if (uniqueVariantIds.length === 0) {
@@ -1443,14 +1513,25 @@ async function loadEditableVariantMap(variantIds: string[]) {
         .select(`
             id,
             sku,
+            title,
             price,
             is_active,
             products (
                 title,
-                status
+                slug,
+                status,
+                product_media ( media_url )
+            ),
+            variant_media ( media_url, position ),
+            variant_option_values (
+                product_option_values (
+                    value,
+                    product_options ( name )
+                )
             ),
             inventory_items (
-                available_quantity
+                available_quantity,
+                reserved_quantity
             )
         `)
         .in('id', uniqueVariantIds)
@@ -1464,15 +1545,20 @@ async function loadEditableVariantMap(variantIds: string[]) {
         variantMap.set(row.id, {
             id: row.id,
             sku: row.sku,
+            title: row.title,
             price: row.price,
             is_active: row.is_active,
             products: productRow
                 ? {
                     title: productRow.title,
+                    slug: productRow.slug,
                     status: productRow.status,
+                    product_media: productRow.product_media ?? [],
                 }
                 : null,
             inventory_items: row.inventory_items ?? [],
+            variant_media: row.variant_media ?? [],
+            variant_option_values: row.variant_option_values ?? [],
         })
     }
 
@@ -1504,6 +1590,10 @@ function buildOrderItemInsertSets(
         variant_id: item.variantId,
         title: item.title,
         sku: item.sku || '',
+        ...(capabilities.hasProductSlug ? { product_slug: item.productSlug ?? null } : {}),
+        ...(capabilities.hasImageUrl ? { image_url: item.imageUrl ?? null } : {}),
+        ...(capabilities.hasVariantTitle ? { variant_title: item.variantTitle ?? null } : {}),
+        ...(capabilities.hasVariantOptions ? { variant_options: item.variantOptions ?? [] } : {}),
         quantity: item.quantity,
         unit_price: item.unitPrice,
         total_price: Number((item.unitPrice * item.quantity).toFixed(2)),
@@ -1849,6 +1939,10 @@ export async function updateOrderLineItems(orderId: string, items: EditableOrder
             discount_amount?: number | string | null
             title?: string | null
             sku?: string | null
+            product_slug?: string | null
+            image_url?: string | null
+            variant_title?: string | null
+            variant_options?: Array<{ name?: string; value?: string }> | null
         }>
     }
     const channel = inferSalesChannel(rawOrder)
@@ -1866,6 +1960,10 @@ export async function updateOrderLineItems(orderId: string, items: EditableOrder
         discountAmount: Number(item.discountAmount ?? 0),
         title: normalizeNullableString(item.title) ?? '',
         sku: normalizeNullableString(item.sku),
+        productSlug: normalizeNullableString(item.productSlug),
+        imageUrl: normalizeNullableString(item.imageUrl),
+        variantTitle: normalizeNullableString(item.variantTitle),
+        variantOptions: Array.isArray(item.variantOptions) ? item.variantOptions.filter((option) => option?.name && option?.value) : [],
     }))
 
     if (normalizedItems.length === 0) {
@@ -1905,6 +2003,10 @@ export async function updateOrderLineItems(orderId: string, items: EditableOrder
         discount_amount?: number | string | null
         title?: string | null
         sku?: string | null
+        product_slug?: string | null
+        image_url?: string | null
+        variant_title?: string | null
+        variant_options?: Array<{ name?: string; value?: string }> | null
     }>
     const currentQuantities = new Map<string, number>()
     const currentLineDiscountTotal = currentItems.reduce((sum, item) => {
@@ -1937,7 +2039,11 @@ export async function updateOrderLineItems(orderId: string, items: EditableOrder
             return { error: `Variant ${variant.sku || variant.id.slice(0, 8)} is archived or inactive and cannot be increased.` }
         }
 
-        const availableQuantity = (variant.inventory_items ?? []).reduce((sum, inventoryItem) => sum + Number(inventoryItem.available_quantity ?? 0), 0)
+        const availableQuantity = (variant.inventory_items ?? []).reduce((sum, inventoryItem) => {
+            const available = Number(inventoryItem.available_quantity ?? 0)
+            const reserved = Number(inventoryItem.reserved_quantity ?? 0)
+            return sum + Math.max(0, available - reserved)
+        }, 0)
         const delta = item.quantity - currentQuantity
 
         if (delta > 0 && availableQuantity < delta) {
@@ -1945,10 +2051,21 @@ export async function updateOrderLineItems(orderId: string, items: EditableOrder
         }
 
         stockDeltas.set(item.variantId, delta)
+        const variantOptions = buildVariantOptionSnapshot(variant.variant_option_values)
+        const imageUrl = variant.variant_media
+            ?.slice()
+            .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
+            .find((media) => media.media_url)?.media_url
+            || variant.products?.product_media?.find((media) => media.media_url)?.media_url
+            || null
         hydratedItems.push({
             ...item,
             title: item.title || variant.products?.title || 'Order item',
             sku: item.sku ?? variant.sku ?? null,
+            productSlug: item.productSlug ?? variant.products?.slug ?? null,
+            imageUrl: item.imageUrl ?? imageUrl,
+            variantTitle: item.variantTitle ?? buildVariantLabelFromSnapshot(variant.title, variantOptions),
+            variantOptions: item.variantOptions && item.variantOptions.length > 0 ? item.variantOptions : variantOptions,
         })
     }
 
@@ -1963,6 +2080,12 @@ export async function updateOrderLineItems(orderId: string, items: EditableOrder
                 discountAmount: itemCapabilities.hasDiscountAmount ? Number(item.discount_amount ?? 0) : 0,
                 title: normalizeNullableString(item.title) ?? 'Order item',
                 sku: normalizeNullableString(item.sku),
+                productSlug: itemCapabilities.hasProductSlug ? normalizeNullableString(item.product_slug) : null,
+                imageUrl: itemCapabilities.hasImageUrl ? normalizeNullableString(item.image_url) : null,
+                variantTitle: itemCapabilities.hasVariantTitle ? normalizeNullableString(item.variant_title) : null,
+                variantOptions: itemCapabilities.hasVariantOptions && Array.isArray(item.variant_options)
+                    ? item.variant_options.filter((option) => option?.name && option?.value).map((option) => ({ name: String(option?.name), value: String(option?.value) }))
+                    : [],
             }))
 
         if (previousItems.length === 0) {
@@ -2125,6 +2248,7 @@ export async function createOrder(input: CreateOrderInput) {
     const supabase = await createClient()
     const supabaseAdmin = createAdminClient()
     const capabilities = await getOrderSchemaCapabilities()
+    const itemCapabilities = await getOrderItemSchemaCapabilities()
     const channel = normalizeOrderChannel(input.order_type) ?? 'pos'
     const paymentStatus = normalizeOrderPaymentStatus(input.payment_status)
     const fulfillmentStatus = normalizeOrderFulfillmentStatus(channel, input.status ?? getDefaultFulfillmentStatus(channel))
@@ -2146,6 +2270,8 @@ export async function createOrder(input: CreateOrderInput) {
     if (contactResult.error || !contactResult.data) {
         return { error: contactResult.error || 'Customer contact is required.' }
     }
+
+    const variantMap = await loadEditableVariantMap(input.items.map((item) => item.variant_id))
 
     const contact = contactResult.data
     const guestFields = {
@@ -2249,24 +2375,30 @@ export async function createOrder(input: CreateOrderInput) {
     }
 
     // 2. Create Order Items
-    const itemCandidates: OrderItemInsertCandidate[][] = [
-        input.items.map(item => ({
-            order_id: order.id,
-            variant_id: item.variant_id,
-            title: item.title || '',
-            sku: item.sku || '',
+    const hydratedItems = input.items.map((item) => {
+        const variant = variantMap.get(item.variant_id)
+        const variantOptions = buildVariantOptionSnapshot(variant?.variant_option_values)
+        const imageUrl = variant?.variant_media
+            ?.slice()
+            .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
+            .find((media) => media.media_url)?.media_url
+            || variant?.products?.product_media?.find((media) => media.media_url)?.media_url
+            || null
+
+        return {
+            variantId: item.variant_id,
             quantity: item.quantity,
-            unit_price: item.unit_price,
-            total_price: item.quantity * item.unit_price
-        })),
-        input.items.map(item => ({
-            order_id: order.id,
-            variant_id: item.variant_id,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            total_price: item.quantity * item.unit_price
-        })),
-    ]
+            unitPrice: item.unit_price,
+            title: item.title || variant?.products?.title || 'Order item',
+            sku: item.sku ?? variant?.sku ?? null,
+            productSlug: variant?.products?.slug ?? null,
+            imageUrl,
+            variantTitle: buildVariantLabelFromSnapshot(variant?.title, variantOptions),
+            variantOptions,
+        }
+    })
+
+    const itemCandidates = buildOrderItemInsertSets(order.id, hydratedItems, itemCapabilities)
 
     const { error: itemsError } = await tryInsertOrderItems(supabase, itemCandidates)
 

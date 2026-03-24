@@ -22,10 +22,14 @@ export type InventoryItem = {
 
 type InventoryVariantRow = {
     id: string
+    title?: string | null
     sku?: string | null
+    is_active?: boolean | null
+    sellable_status?: string | null
+    variant_media?: Array<{ media_url?: string | null; position?: number | null }> | null
     products?: {
         title?: string | null
-        product_media?: Array<{ media_url?: string | null }> | null
+        product_media?: Array<{ media_url?: string | null; position?: number | null }> | null
     } | null
     inventory_items?: Array<{
         available_quantity?: number | null
@@ -51,11 +55,15 @@ export async function getInventoryItems(query: string = '', page: number = 1, li
         .from('product_variants')
         .select(`
             id,
+            title,
             sku,
+            is_active,
+            sellable_status,
+            variant_media ( media_url, position ),
             product_id,
             products!inner (
                 title,
-                product_media (media_url)
+                product_media (media_url, position)
             ),
             inventory_items (
                 available_quantity,
@@ -89,10 +97,20 @@ export async function getInventoryItems(query: string = '', page: number = 1, li
 
         return {
             id: variant.id,
-            title: variant.products?.title || variant.sku || 'Variant',
+            title: variant.title && variant.title !== 'Default Variant'
+                ? `${variant.products?.title || 'Product'} - ${variant.title}`
+                : variant.products?.title || variant.sku || 'Variant',
             sku: variant.sku || '',
             product_title: variant.products?.title || '',
-            product_image: variant.products?.product_media?.[0]?.media_url || null,
+            product_image: variant.variant_media
+                ?.slice()
+                .sort((left, right) => (left.position ?? 0) - (right.position ?? 0))
+                .find((media) => media.media_url)?.media_url
+                || variant.products?.product_media
+                    ?.slice()
+                    .sort((left, right) => (left.position ?? 0) - (right.position ?? 0))
+                    .find((media) => media.media_url)?.media_url
+                || null,
             quantity,
             reorder_point: reorderPoint,
             bin_location: inventory.bin_location || null,
@@ -106,7 +124,6 @@ export async function getInventoryItems(query: string = '', page: number = 1, li
 
 export async function updateStock(variantId: string, newQuantity: number, reason?: string) {
     const access = await requireActionPermission('manage_inventory')
-    const supabase = await createClient()
     const supabaseAdmin = createAdminClient()
 
     if (newQuantity < 0) {
@@ -114,31 +131,48 @@ export async function updateStock(variantId: string, newQuantity: number, reason
     }
 
     // Get current quantity to compute delta
-    const { data: current } = await supabase
+    const { data: current } = await supabaseAdmin
         .from('inventory_items')
-        .select('available_quantity')
+        .select('id, location_id, available_quantity, reorder_point')
         .eq('variant_id', variantId)
         .limit(1)
         .single()
 
-    const currentQty = current?.available_quantity ?? 0
+    if (!current?.id || !current.location_id) {
+        return { error: 'Inventory record not found for this variant.' }
+    }
+
+    const currentQty = current.available_quantity ?? 0
     const delta = newQuantity - currentQty
 
     if (delta === 0) {
         return { success: true }
     }
 
-    const rpcName = delta < 0 ? 'reserve_stock' : 'release_stock'
-    const qty = Math.abs(delta)
+    const { error: updateError } = await supabaseAdmin
+        .from('inventory_items')
+        .update({
+            available_quantity: newQuantity,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', current.id)
 
-    const { data: ok, error } = await supabaseAdmin.rpc(rpcName, {
-        p_variant_id: variantId,
-        p_qty: qty,
-        p_reference: null
-    })
+    if (updateError) {
+        return { error: updateError.message || 'Stock update failed.' }
+    }
 
-    if (error || ok === false) {
-        return { error: error?.message || 'Stock update failed (concurrent change or insufficient stock).' }
+    const { error: movementError } = await supabaseAdmin
+        .from('inventory_movements')
+        .insert({
+            variant_id: variantId,
+            location_id: current.location_id,
+            quantity: delta,
+            movement_type: 'adjustment',
+            reference_id: null,
+        })
+
+    if (movementError) {
+        return { error: movementError.message || 'Stock movement log failed.' }
     }
 
     await logAudit({
@@ -146,9 +180,10 @@ export async function updateStock(variantId: string, newQuantity: number, reason
         action: 'inventory.update',
         entityType: 'variant',
         entityId: variantId,
-        after: { quantity: newQuantity, reason: reason || null }
+        before: { quantity: currentQty },
+        after: { quantity: newQuantity, delta, reason: reason || null }
     })
-    if (newQuantity <= (currentQty ?? 0)) {
+    if (newQuantity <= Number(current.reorder_point ?? 10)) {
         await notifyLowStock(variantId)
     }
 

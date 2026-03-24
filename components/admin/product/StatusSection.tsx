@@ -2,7 +2,14 @@ import React from 'react'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import Label from '@/components/ui/Label'
-import { Save } from 'lucide-react'
+
+type StatusSectionInitialData = {
+    status?: string | null
+    gender?: string | null
+    hs_code?: string | null
+    tags?: string[] | null
+    is_featured?: boolean | null
+}
 
 interface StatusSectionProps {
     categories: { id: string, name: string, parent_id: string | null }[]
@@ -11,8 +18,10 @@ interface StatusSectionProps {
     selectedSubCategoryId: string
     setSelectedSubCategoryId: React.Dispatch<React.SetStateAction<string>>
     loading: boolean
-    initialData?: any
+    initialData?: StatusSectionInitialData
 }
+
+export type { StatusSectionInitialData }
 
 export default function StatusSection({
     categories,
@@ -33,6 +42,7 @@ export default function StatusSection({
                     label="Status *"
                     name="status"
                     required
+                    disabled={loading}
                     defaultValue={initialData?.status || 'draft'}
                 >
                     <option value="draft">Draft</option>
@@ -50,6 +60,7 @@ export default function StatusSection({
                                 setSelectedSubCategoryId('')
                             }}
                             required
+                            disabled={loading}
                         >
                             <option value="">Select Main Category</option>
                             {categories.filter(c => !c.parent_id).map(c => (
@@ -62,6 +73,7 @@ export default function StatusSection({
                             <Select
                                 value={selectedSubCategoryId}
                                 onChange={(e) => setSelectedSubCategoryId(e.target.value)}
+                                disabled={loading}
                             >
                                 <option value="">Select Subcategory (Optional)</option>
                                 {categories.filter(c => c.parent_id === selectedParentId).map(c => (
@@ -82,7 +94,8 @@ export default function StatusSection({
                 <Select
                     label="Gender / Target Audience"
                     name="gender"
-                    defaultValue={initialData?.gender}
+                    disabled={loading}
+                    defaultValue={initialData?.gender ?? undefined}
                 >
                     <option value="">Select Gender</option>
                     <option value="Women">Women</option>
@@ -95,14 +108,16 @@ export default function StatusSection({
                     label="HSN Code"
                     name="hs_code"
                     type="text"
+                    disabled={loading}
                     placeholder="e.g. 7113"
                     helperText="Harmonized System of Nomenclature for GST."
-                    defaultValue={initialData?.hs_code}
+                    defaultValue={initialData?.hs_code ?? undefined}
                 />
                 <Input
                     label="Tags"
                     name="tags"
                     type="text"
+                    disabled={loading}
                     placeholder="Summer, Sale, New"
                     helperText="Comma separated."
                     defaultValue={initialData?.tags?.join(', ')}
@@ -113,8 +128,9 @@ export default function StatusSection({
                         type="checkbox"
                         id="is_featured"
                         name="is_featured"
+                        disabled={loading}
                         className="h-4 w-4 text-gray-900 focus:ring-gray-900 border-gray-300 rounded"
-                        defaultChecked={initialData?.is_customizable}
+                        defaultChecked={initialData?.is_featured ?? undefined}
                     />
                     <label htmlFor="is_featured" className="text-sm font-medium text-gray-700">
                         Feature this product

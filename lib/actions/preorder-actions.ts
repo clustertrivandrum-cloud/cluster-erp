@@ -47,6 +47,12 @@ export async function getPreorders(status: PreorderStatus | 'all' = 'all') {
             customer_id,
             variant_id,
             order_id,
+            product_title,
+            product_slug,
+            image_url,
+            variant_title,
+            variant_options,
+            unit_price,
             quantity,
             status,
             created_at,
@@ -114,6 +120,12 @@ export async function createPaymentOrderFromPreorder(id: string) {
             customer_id,
             variant_id,
             order_id,
+            product_title,
+            product_slug,
+            image_url,
+            variant_title,
+            variant_options,
+            unit_price,
             quantity,
             status,
             customers (
@@ -126,9 +138,12 @@ export async function createPaymentOrderFromPreorder(id: string) {
             product_variants (
                 id,
                 sku,
+                title,
                 price,
                 products (
-                    title
+                    title,
+                    slug,
+                    product_media ( media_url, position )
                 )
             )
         `)
@@ -161,7 +176,7 @@ export async function createPaymentOrderFromPreorder(id: string) {
         ? variant.products[0]
         : variant?.products
 
-    const unitPrice = Number(variant?.price || 0)
+    const unitPrice = Number(preorder.unit_price || variant?.price || 0)
     const quantity = preorder.quantity || 1
     const customerName = [customer?.first_name, customer?.last_name].filter(Boolean).join(' ').trim()
     const customerEmail = normalizeRequiredEmail(customer?.email)
@@ -204,8 +219,12 @@ export async function createPaymentOrderFromPreorder(id: string) {
         .insert({
             order_id: order.id,
             variant_id: preorder.variant_id,
-            title: product?.title || 'Preorder item',
+            title: preorder.product_title || product?.title || 'Preorder item',
             sku: variant?.sku || preorder.variant_id,
+            product_slug: preorder.product_slug || product?.slug || null,
+            image_url: preorder.image_url || null,
+            variant_title: preorder.variant_title || variant?.title || 'Default Variant',
+            variant_options: preorder.variant_options || [],
             quantity,
             unit_price: unitPrice,
             total_price: unitPrice * quantity,

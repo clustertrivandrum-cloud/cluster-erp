@@ -26,6 +26,36 @@ function mergeProducts(existing: PosProduct[], incoming: PosProduct[]) {
     return Array.from(merged.values())
 }
 
+function getVariantStock(variant: PosProductVariant) {
+    return (variant.inventory_items ?? []).reduce((sum, inventoryItem) => {
+        return sum + Number(inventoryItem.available_quantity ?? 0)
+    }, 0)
+}
+
+function isVariantSellable(variant: PosProductVariant) {
+    const sellableStatus = (variant.sellable_status ?? '').trim().toLowerCase()
+    if (sellableStatus) {
+        return sellableStatus === 'sellable'
+    }
+
+    return variant.is_active !== false
+}
+
+function getPreferredVariant(product: PosProduct) {
+    const sellableVariants = product.product_variants.filter(isVariantSellable)
+
+    return sellableVariants.find((variant) => getVariantStock(variant) > 0)
+        ?? sellableVariants.find((variant) => variant.is_default)
+        ?? sellableVariants[0]
+        ?? null
+}
+
+function getPreferredVariantImage(product: PosProduct, variant: PosProductVariant | null) {
+    return variant?.variant_media?.find((media) => media.media_url)?.media_url
+        ?? product.product_media?.[0]?.media_url
+        ?? null
+}
+
 export default function POSShell({ initialProducts, categories, initialCustomers, settings }: POSShellProps) {
     const [products, setProducts] = useState<PosProduct[]>(initialProducts)
     const [knownProducts, setKnownProducts] = useState<PosProduct[]>(initialProducts)
@@ -103,10 +133,6 @@ export default function POSShell({ initialProducts, categories, initialCustomers
         })
     }, [selectedCustomer])
 
-    const getVariantStock = (variant: PosProductVariant) => {
-        return Number(variant.inventory_items?.[0]?.available_quantity ?? 0)
-    }
-
     const getVariantPrice = (variant: PosProductVariant) => {
         return Number(variant.price ?? 0)
     }
@@ -114,9 +140,13 @@ export default function POSShell({ initialProducts, categories, initialCustomers
 
     // Cart Logic
     const addToCart = (product: PosProduct) => {
-        const targetVariant = product.product_variants.find((variant) => getVariantStock(variant) > 0) ?? product.product_variants[0]
+        const targetVariant = getPreferredVariant(product)
         if (!targetVariant) {
             alert('No variants available')
+            return
+        }
+        if (!isVariantSellable(targetVariant)) {
+            alert('This variant is not available for sale')
             return
         }
         if (getVariantStock(targetVariant) <= 0) {
@@ -142,11 +172,13 @@ export default function POSShell({ initialProducts, categories, initialCustomers
                 product_id: product.id,
                 variant_id: targetVariant.id,
                 title: product.title,
-                variant_title: targetVariant.sku ? `SKU ${targetVariant.sku}` : 'Default Variant',
+                variant_title: targetVariant.title && targetVariant.title !== 'Default Variant'
+                    ? targetVariant.title
+                    : targetVariant.sku ? `SKU ${targetVariant.sku}` : 'Default Variant',
                 sku: targetVariant.sku,
                 price,
                 quantity: 1,
-                image: product.product_media?.[0]?.media_url ?? null
+                image: getPreferredVariantImage(product, targetVariant)
             }])
         }
     }

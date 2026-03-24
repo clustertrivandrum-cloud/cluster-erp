@@ -1,6 +1,5 @@
 import React from 'react'
 import Input from '@/components/ui/Input'
-import Select from '@/components/ui/Select'
 import { Plus, Trash2, X, Image as ImageIcon, ChevronRight } from 'lucide-react'
 import { Option, Variant } from './types'
 
@@ -12,7 +11,7 @@ interface VariantsSectionProps {
     updateOptionName: (index: number, name: string) => void
     addOptionValue: (index: number, value: string) => void
     removeOptionValue: (optionIndex: number, valueIndex: number) => void
-    updateVariant: (index: number, field: keyof Variant, value: any) => void
+    updateVariant: (index: number, field: keyof Variant, value: Variant[keyof Variant]) => void
     setEditingVariantId: React.Dispatch<React.SetStateAction<string | null>>
 }
 
@@ -119,14 +118,14 @@ export default function VariantsSection({
                             <ChevronRight className="w-4 h-4 text-gray-900 mr-1" />
                             Preview & Edit Variants
                         </h4>
-                        <p className="text-xs text-gray-600 mb-3">Set price, SKU, and on-hand quantity per variant. Parent product quantity is not used when variants exist.</p>
+                        <p className="text-xs text-gray-600 mb-3">Set the customer-facing selling price, SKU, and on-hand quantity per variant. Parent product quantity is not used when variants exist.</p>
                         <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
                             <div className="overflow-x-auto">
                                 <table className="min-w-full divide-y divide-gray-200">
                                     <thead className="bg-gray-50">
                                         <tr>
                                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider pl-6">Variant</th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">Price *</th>
+                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-36">Selling Price *</th>
                                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-40">SKU</th>
                                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">On-hand Qty *</th>
                                             <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Images</th>
@@ -134,7 +133,7 @@ export default function VariantsSection({
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {variants.map((variant, index) => (
-                                            <tr key={index} className="hover:bg-gray-50/50 transition-colors">
+                                            <tr key={variant.id || variant.option_signature || index} className="hover:bg-gray-50/50 transition-colors">
                                                 <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 pl-6 border-r border-transparent">
                                                     {variant.title}
                                                 </td>

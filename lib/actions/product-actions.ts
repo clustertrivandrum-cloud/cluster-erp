@@ -45,6 +45,73 @@ const normalizeSku = (value?: string | null) => {
     return trimmed.length > 0 ? trimmed : undefined
 }
 
+const normalizeVariantIdentityToken = (value?: string | null) => {
+    return (value || '').trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+const getVariantSellableStatus = (productStatus?: string | null) => {
+    switch ((productStatus || '').trim().toLowerCase()) {
+        case 'active':
+            return 'sellable'
+        case 'archived':
+            return 'archived'
+        default:
+            return 'draft'
+    }
+}
+
+const getVariantIsActive = (productStatus?: string | null) => {
+    return (productStatus || '').trim().toLowerCase() === 'active'
+}
+
+const buildVariantIdentity = (
+    optionDefinitions: ProductOptionInput[] = [],
+    variantOptions: Record<string, string> = {}
+) => {
+    const normalizedOptionLookup = new Map<string, string>()
+
+    Object.entries(variantOptions).forEach(([name, value]) => {
+        const trimmedName = name.trim()
+        const trimmedValue = value?.trim()
+
+        if (!trimmedName || !trimmedValue) {
+            return
+        }
+
+        normalizedOptionLookup.set(trimmedName, trimmedValue)
+    })
+
+    const orderedSelections = optionDefinitions
+        .map((option) => {
+            const optionName = option.name?.trim()
+            const optionValue = optionName ? normalizedOptionLookup.get(optionName) : undefined
+
+            if (!optionName || !optionValue) {
+                return null
+            }
+
+            return [optionName, optionValue] as const
+        })
+        .filter(Boolean) as Array<readonly [string, string]>
+
+    if (orderedSelections.length === 0) {
+        return {
+            title: 'Default Variant',
+            optionSignature: null as string | null,
+        }
+    }
+
+    return {
+        title: orderedSelections.map(([, value]) => value).join(' / '),
+        optionSignature: JSON.stringify(
+            orderedSelections.map(([name, value]) => [
+                normalizeVariantIdentityToken(name),
+                normalizeVariantIdentityToken(value),
+            ])
+        ),
+    }
+}
+
 const toFloat = (value?: string | number | null) => {
     if (typeof value === 'number') {
         return Number.isFinite(value) ? value : 0
@@ -230,8 +297,13 @@ async function syncProductOptionsAndVariants(
     supabase: Awaited<ReturnType<typeof createClient>>,
     productId: string,
     options: ProductOptionInput[],
-    variants: ProductVariantInput[]
+    variants: ProductVariantInput[],
+    productStatus?: string | null
 ) {
+    if (options.length > 0 && variants.length === 0) {
+        throw new Error('At least one variant is required when product options are defined.')
+    }
+
     const { data: existingOptions, error: existingOptionsError } = await supabase
         .from('product_options')
         .select(`
@@ -250,7 +322,7 @@ async function syncProductOptionsAndVariants(
 
     const { data: existingVariants, error: existingVariantsError } = await supabase
         .from('product_variants')
-        .select('id')
+        .select('id, option_signature, title')
         .eq('product_id', productId)
 
     if (existingVariantsError) {
@@ -337,10 +409,29 @@ async function syncProductOptionsAndVariants(
         }
     }
 
-    for (const variant of variants) {
+    const { error: resetDefaultError } = await supabase
+        .from('product_variants')
+        .update({ is_default: false })
+        .eq('product_id', productId)
+        .eq('is_default', true)
+
+    if (resetDefaultError) {
+        throw resetDefaultError
+    }
+
+    for (const [variantIndex, variant] of variants.entries()) {
+        const variantIdentity = buildVariantIdentity(options, variant.options || {})
+        const matchingVariant = variantRows.find((row) => row.id === variant.id)
+            || variantRows.find((row) => row.option_signature && row.option_signature === variantIdentity.optionSignature)
+            || variantRows.find((row) => row.title && row.title === variantIdentity.title)
         const variantPayload = {
-            ...(variant.id ? { id: variant.id } : {}),
+            ...(matchingVariant?.id ? { id: matchingVariant.id } : {}),
             product_id: productId,
+            title: variantIdentity.title,
+            option_signature: variantIdentity.optionSignature,
+            sellable_status: getVariantSellableStatus(productStatus),
+            is_default: variantIndex === 0,
+            variant_rank: variantIndex,
             sku: normalizeSku(variant.sku),
             barcode: variant.barcode || null,
             price: Math.max(0, toFloat(variant.price)),
@@ -352,7 +443,7 @@ async function syncProductOptionsAndVariants(
             dimension_width: toNullableFloat(variant.dimension_width),
             dimension_height: toNullableFloat(variant.dimension_height),
             dimension_unit: variant.dimension_unit || 'cm',
-            is_active: true,
+            is_active: getVariantIsActive(productStatus),
         }
 
         const { data: savedVariant, error: variantError } = await supabase
@@ -452,6 +543,8 @@ type ExistingOptionRow = {
 
 type ExistingVariantRow = {
     id: string
+    option_signature?: string | null
+    title?: string | null
 }
 
 type SearchVariantsProductRow = {
@@ -460,27 +553,31 @@ type SearchVariantsProductRow = {
     status?: string | null
     product_variants?: Array<{
         id: string
+        title?: string | null
         sku?: string | null
         cost_price?: number | null
         price?: number | null
         is_active?: boolean | null
         inventory_items?: Array<{ available_quantity?: number | null }> | null
+        variant_media?: Array<{ media_url?: string | null; position?: number | null }> | null
     }> | null
-    product_media?: Array<{ media_url?: string | null }> | null
+    product_media?: Array<{ media_url?: string | null; position?: number | null }> | null
 }
 
 type SearchVariantsSkuRow = {
     id: string
+    title?: string | null
     sku?: string | null
     cost_price?: number | null
     price?: number | null
     is_active?: boolean | null
     inventory_items?: Array<{ available_quantity?: number | null }> | null
+    variant_media?: Array<{ media_url?: string | null; position?: number | null }> | null
     products?: {
         id: string
         title?: string | null
         status?: string | null
-        product_media?: Array<{ media_url?: string | null }> | null
+        product_media?: Array<{ media_url?: string | null; position?: number | null }> | null
     } | null
 }
 
@@ -560,6 +657,10 @@ export async function createProduct(formData: FormData) {
     const supabase = await createClient()
     const { options, variants } = parseProductPayload(formData)
 
+    if (options.length > 0 && variants.length === 0) {
+        return { error: 'At least one variant is required when product options are defined.' }
+    }
+
     const parsed = BaseProductSchema.safeParse({
         title: formData.get('title'),
         slug: formData.get('slug'),
@@ -622,7 +723,7 @@ export async function createProduct(formData: FormData) {
 
     if (options.length > 0 && variants.length > 0) {
         try {
-            await syncProductOptionsAndVariants(supabase, newProduct.id, options, variants)
+            await syncProductOptionsAndVariants(supabase, newProduct.id, options, variants, product.status)
         } catch (error: unknown) {
             console.error('Error creating product variants:', error)
             await supabase.from('products').delete().eq('id', newProduct.id)
@@ -632,12 +733,17 @@ export async function createProduct(formData: FormData) {
         // --- SIMPLE PRODUCT (DEFAULT VARIANT) ---
         const variant = {
             product_id: newProduct.id,
+            title: 'Default Variant',
+            option_signature: null,
+            sellable_status: getVariantSellableStatus(product.status),
+            is_default: true,
+            variant_rank: 0,
             sku: normalizeSku(parsed.data.sku),
             barcode: (formData.get('barcode') as string) || null,
             price: parsed.data.price,
             compare_at_price: parsed.data.compare_at_price || null,
             cost_price: parsed.data.cost_price || null,
-            is_active: product.status === 'active'
+            is_active: getVariantIsActive(product.status)
         }
 
         const { data: newVariant, error: variantError } = await supabase
@@ -717,9 +823,9 @@ export async function searchVariants(query: string) {
                 title,
                 status,
                 product_variants (
-                    id, sku, cost_price, price, is_active, inventory_items(available_quantity)
+                    id, title, sku, cost_price, price, is_active, inventory_items(available_quantity), variant_media(media_url, position)
                 ),
-                product_media (media_url)
+                product_media (media_url, position)
             `)
             .ilike('title', `%${searchTerm}%`)
             .limit(10),
@@ -727,16 +833,18 @@ export async function searchVariants(query: string) {
             .from('product_variants')
             .select(`
                 id,
+                title,
                 sku,
                 cost_price,
                 price,
                 is_active,
                 inventory_items(available_quantity),
+                variant_media(media_url, position),
                 products (
                     id,
                     title,
                     status,
-                    product_media (media_url)
+                    product_media (media_url, position)
                 )
             `)
             .ilike('sku', `%${searchTerm}%`)
@@ -762,13 +870,24 @@ export async function searchVariants(query: string) {
             }
 
             seen.add(v.id)
+            const variantLabel = v.title && v.title !== 'Default Variant' ? ` - ${v.title}` : ''
             results.push({
                 id: v.id,
-                title: `${p.title} ${v.sku ? `(${v.sku})` : ''}`,
+                title: `${p.title}${variantLabel}${v.sku ? ` (${v.sku})` : ''}`,
                 sku: v.sku,
                 price: v.price || 0,
                 cost_price: v.cost_price || 0,
-                product_images: p.product_media?.map((m) => m.media_url).filter((value): value is string => Boolean(value)) || [],
+                product_images: v.variant_media
+                    ?.slice()
+                    .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
+                    .map((media) => media.media_url)
+                    .filter((value): value is string => Boolean(value))
+                    || p.product_media
+                        ?.slice()
+                        .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
+                        .map((m) => m.media_url)
+                        .filter((value): value is string => Boolean(value))
+                    || [],
                 is_active: v.is_active !== false,
                 product_status: p.status || null,
                 available_quantity: (v.inventory_items || []).reduce((sum, item) => sum + Number(item.available_quantity || 0), 0),
@@ -782,13 +901,24 @@ export async function searchVariants(query: string) {
         }
 
         seen.add(variant.id)
+        const variantLabel = variant.title && variant.title !== 'Default Variant' ? ` - ${variant.title}` : ''
         results.push({
             id: variant.id,
-            title: `${variant.products?.title || 'Variant'} ${variant.sku ? `(${variant.sku})` : ''}`,
+            title: `${variant.products?.title || 'Variant'}${variantLabel}${variant.sku ? ` (${variant.sku})` : ''}`,
             sku: variant.sku,
             price: variant.price || 0,
             cost_price: variant.cost_price || 0,
-            product_images: variant.products?.product_media?.map((media) => media.media_url).filter((value): value is string => Boolean(value)) || [],
+            product_images: variant.variant_media
+                ?.slice()
+                .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
+                .map((media) => media.media_url)
+                .filter((value): value is string => Boolean(value))
+                || variant.products?.product_media
+                    ?.slice()
+                    .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
+                    .map((media) => media.media_url)
+                    .filter((value): value is string => Boolean(value))
+                || [],
             is_active: variant.is_active !== false,
             product_status: variant.products?.status || null,
             available_quantity: (variant.inventory_items || []).reduce((sum, item) => sum + Number(item.available_quantity || 0), 0),
@@ -819,9 +949,11 @@ export async function getProductById(id: string) {
                     product_option_values (
                         id,
                         value,
+                        position,
                         option_id,
                         product_options (
-                            name
+                            name,
+                            position
                         )
                     )
                 )
@@ -841,6 +973,53 @@ export async function getProductById(id: string) {
     if (product.product_media) {
         product.product_media.sort((a: { position?: number | null }, b: { position?: number | null }) => (a.position || 0) - (b.position || 0))
     }
+    if (product.product_variants) {
+        product.product_variants.sort(
+            (
+                a: { is_default?: boolean | null; variant_rank?: number | null; created_at?: string | null },
+                b: { is_default?: boolean | null; variant_rank?: number | null; created_at?: string | null }
+            ) => {
+                const defaultDelta = Number(b.is_default ?? false) - Number(a.is_default ?? false)
+                if (defaultDelta !== 0) {
+                    return defaultDelta
+                }
+
+                const rankDelta = (a.variant_rank || 0) - (b.variant_rank || 0)
+                if (rankDelta !== 0) {
+                    return rankDelta
+                }
+
+                return (a.created_at || '').localeCompare(b.created_at || '')
+            }
+        )
+
+        product.product_variants.forEach((variant: {
+            variant_media?: Array<{ position?: number | null }>
+            variant_option_values?: Array<{
+                product_option_values?: {
+                    position?: number | null
+                    product_options?: { position?: number | null } | null
+                } | null
+            }>
+        }) => {
+            if (variant.variant_media) {
+                variant.variant_media.sort((a, b) => (a.position || 0) - (b.position || 0))
+            }
+
+            if (variant.variant_option_values) {
+                variant.variant_option_values.sort((left, right) => {
+                    const leftOptionPosition = left.product_option_values?.product_options?.position || 0
+                    const rightOptionPosition = right.product_option_values?.product_options?.position || 0
+
+                    if (leftOptionPosition !== rightOptionPosition) {
+                        return leftOptionPosition - rightOptionPosition
+                    }
+
+                    return (left.product_option_values?.position || 0) - (right.product_option_values?.position || 0)
+                })
+            }
+        })
+    }
 
     return product
 }
@@ -849,6 +1028,10 @@ export async function updateProduct(id: string, formData: FormData) {
     await requireActionPermission('manage_products')
     const supabase = await createClient()
     const { options, variants } = parseProductPayload(formData)
+
+    if (options.length > 0 && variants.length === 0) {
+        return { error: 'At least one variant is required when product options are defined.' }
+    }
 
     const parsed = BaseProductSchema.safeParse({
         title: formData.get('title'),
@@ -897,7 +1080,7 @@ export async function updateProduct(id: string, formData: FormData) {
 
     if (options.length > 0) {
         try {
-            await syncProductOptionsAndVariants(supabase, id, options, variants)
+            await syncProductOptionsAndVariants(supabase, id, options, variants, product.status)
         } catch (error: unknown) {
             console.error('Error updating product variants:', error)
             return { error: getErrorMessage(error, 'Unable to update product variants.') }
@@ -906,7 +1089,13 @@ export async function updateProduct(id: string, formData: FormData) {
         // Simple product
         await supabase.from('product_options').delete().eq('product_id', id)
         // Keep the first variant, delete the rest
-        const { data: existingVariants } = await supabase.from('product_variants').select('id').eq('product_id', id)
+        const { data: existingVariants } = await supabase
+            .from('product_variants')
+            .select('id')
+            .eq('product_id', id)
+            .order('is_default', { ascending: false })
+            .order('variant_rank', { ascending: true })
+            .order('created_at', { ascending: true })
         const mainVariantId = existingVariants && existingVariants.length > 0 ? existingVariants[0].id : crypto.randomUUID()
 
         if (existingVariants && existingVariants.length > 1) {
@@ -914,15 +1103,26 @@ export async function updateProduct(id: string, formData: FormData) {
             await supabase.from('product_variants').delete().in('id', idsToDelete)
         }
 
+        await supabase
+            .from('product_variants')
+            .update({ is_default: false })
+            .eq('product_id', id)
+            .eq('is_default', true)
+
         const variant = {
             id: mainVariantId,
             product_id: id,
+            title: 'Default Variant',
+            option_signature: null,
+            sellable_status: getVariantSellableStatus(product.status),
+            is_default: true,
+            variant_rank: 0,
             sku: normalizeSku(formData.get('sku') as string),
             barcode: (formData.get('barcode') as string) || null,
             price: parseFloat(formData.get('price') as string) || 0,
             compare_at_price: formData.get('compare_at_price') ? parseFloat(formData.get('compare_at_price') as string) : null,
             cost_price: formData.get('cost_price') ? parseFloat(formData.get('cost_price') as string) : null,
-            is_active: product.status === 'active'
+            is_active: getVariantIsActive(product.status)
         }
 
         const { data: upsertedVariant, error: variantError } = await supabase.from('product_variants').upsert(variant).select().single()

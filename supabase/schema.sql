@@ -125,6 +125,11 @@ $$ language plpgsql;
 create table product_variants (
   id uuid primary key default gen_random_uuid(),
   product_id uuid references products(id) on delete cascade,
+  title text default 'Default Variant',
+  option_signature text,
+  sellable_status text check (sellable_status in ('draft', 'sellable', 'hidden', 'archived')) default 'draft',
+  is_default boolean default false,
+  variant_rank integer default 0,
   sku text unique not null default generate_sku(),
   barcode text unique,
   price numeric(12,2) not null,
@@ -193,6 +198,79 @@ create table inventory_movements (
   created_at timestamptz default now()
 );
 
+create or replace function reserve_stock(p_variant_id uuid, p_qty integer, p_reference uuid default null)
+returns boolean as $$
+declare
+  inventory_row record;
+begin
+  if p_qty is null or p_qty <= 0 then
+    return true;
+  end if;
+
+  select id, location_id, available_quantity, reserved_quantity
+  into inventory_row
+  from public.inventory_items
+  where variant_id = p_variant_id
+  order by updated_at asc, id asc
+  limit 1
+  for update;
+
+  if inventory_row.id is null then
+    raise exception 'Inventory not found for variant %', p_variant_id;
+  end if;
+
+  if coalesce(inventory_row.available_quantity, 0) - coalesce(inventory_row.reserved_quantity, 0) < p_qty then
+    return false;
+  end if;
+
+  update public.inventory_items
+  set reserved_quantity = coalesce(reserved_quantity, 0) + p_qty,
+      updated_at = now()
+  where id = inventory_row.id;
+
+  insert into public.inventory_movements (variant_id, location_id, quantity, movement_type, reference_id)
+  values (p_variant_id, inventory_row.location_id, -p_qty, 'reservation', p_reference);
+
+  return true;
+end;
+$$ language plpgsql;
+
+create or replace function release_stock(p_variant_id uuid, p_qty integer, p_reference uuid default null)
+returns boolean as $$
+declare
+  inventory_row record;
+  release_qty integer;
+begin
+  if p_qty is null or p_qty <= 0 then
+    return true;
+  end if;
+
+  select id, location_id, reserved_quantity
+  into inventory_row
+  from public.inventory_items
+  where variant_id = p_variant_id
+  order by updated_at asc, id asc
+  limit 1
+  for update;
+
+  if inventory_row.id is null then
+    raise exception 'Inventory not found for variant %', p_variant_id;
+  end if;
+
+  release_qty := least(coalesce(inventory_row.reserved_quantity, 0), p_qty);
+
+  update public.inventory_items
+  set reserved_quantity = greatest(coalesce(reserved_quantity, 0) - release_qty, 0),
+      updated_at = now()
+  where id = inventory_row.id;
+
+  insert into public.inventory_movements (variant_id, location_id, quantity, movement_type, reference_id)
+  values (p_variant_id, inventory_row.location_id, release_qty, 'release', p_reference);
+
+  return true;
+end;
+$$ language plpgsql;
+
 -- =========================================
 -- 4️⃣ ORDER ENGINE (POS + ONLINE)
 -- =========================================
@@ -222,9 +300,29 @@ create table order_items (
   variant_id uuid references product_variants(id),
   title text,
   sku text,
+  product_slug text,
+  image_url text,
+  variant_title text,
+  variant_options jsonb default '[]'::jsonb,
   quantity integer not null,
   unit_price numeric(12,2) not null,
   total_price numeric(12,2) not null
+);
+
+create table preorders (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid references customers(id),
+  variant_id uuid references product_variants(id),
+  order_id uuid references orders(id),
+  product_title text,
+  product_slug text,
+  image_url text,
+  variant_title text,
+  variant_options jsonb default '[]'::jsonb,
+  unit_price numeric(12,2),
+  quantity integer,
+  status text default 'pending',
+  created_at timestamptz default now()
 );
 
 create table payments (
@@ -270,6 +368,9 @@ create table expenses (
 
 create index idx_products_slug on products(slug);
 create index idx_variants_product on product_variants(product_id);
+create unique index idx_variants_product_option_signature on product_variants(product_id, option_signature) where option_signature is not null;
+create unique index idx_variants_product_default on product_variants(product_id) where is_default;
+create index idx_variants_sellable on product_variants(product_id, sellable_status, is_default, variant_rank);
 create index idx_inventory_variant on inventory_items(variant_id);
 create index idx_inventory_location on inventory_items(location_id);
 create index idx_orders_user on orders(user_id);

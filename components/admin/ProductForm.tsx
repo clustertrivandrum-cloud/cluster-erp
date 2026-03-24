@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import ImageUpload from './ImageUpload'
 import { createProduct, updateProduct, getCategories } from '@/lib/actions/product-actions'
@@ -14,67 +14,322 @@ import DetailsSection from './product/DetailsSection'
 import VariantsSection from './product/VariantsSection'
 import StatusSection from './product/StatusSection'
 import { Option, Variant } from './product/types'
+import type { StatusSectionInitialData } from './product/StatusSection'
 
-export default function ProductForm({ initialProduct }: { initialProduct?: any }) {
-    const router = useRouter()
-    const [loading, setLoading] = useState(false)
-    const [currentStep, setCurrentStep] = useState(1)
-    const [images, setImages] = useState<string[]>(initialProduct?.product_media?.map((m: any) => m.media_url) || [])
-    const [options, setOptions] = useState<Option[]>(() => {
-        if (!initialProduct?.product_options) return []
-        return initialProduct.product_options
-            .slice()
-            .sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
-            .map((option: any) => ({
+type Category = {
+    id: string
+    name: string
+    parent_id: string | null
+}
+
+type ProductMediaRow = {
+    media_url?: string | null
+    position?: number | null
+}
+
+type ProductOptionValueRow = {
+    id?: string
+    value?: string | null
+    position?: number | null
+}
+
+type ProductOptionMetaRow = {
+    name?: string | null
+    position?: number | null
+}
+
+type VariantOptionValueLinkRow = {
+    product_option_values?: (ProductOptionValueRow & {
+        product_options?: ProductOptionMetaRow | null
+    }) | null
+}
+
+type ProductOptionRow = {
+    id: string
+    name?: string | null
+    position?: number | null
+    values?: string[] | null
+    product_option_values?: ProductOptionValueRow[] | null
+}
+
+type InventoryItemRow = {
+    available_quantity?: number | null
+    reorder_point?: number | null
+    bin_location?: string | null
+}
+
+type ProductVariantRow = {
+    id: string
+    title?: string | null
+    option_signature?: string | null
+    sku?: string | null
+    barcode?: string | null
+    price?: number | null
+    compare_at_price?: number | null
+    cost_price?: number | null
+    quantity?: number | null
+    reorder_point?: number | null
+    bin_location?: string | null
+    weight_value?: number | null
+    weight_unit?: string | null
+    dimension_length?: number | null
+    dimension_width?: number | null
+    dimension_height?: number | null
+    dimension_unit?: string | null
+    images?: string[] | null
+    inventory_items?: InventoryItemRow[] | null
+    variant_media?: ProductMediaRow[] | null
+    variant_option_values?: VariantOptionValueLinkRow[] | null
+}
+
+type InitialProduct = {
+    id: string
+    category_id?: string | null
+    product_media?: ProductMediaRow[] | null
+    product_options?: ProductOptionRow[] | null
+    product_variants?: ProductVariantRow[] | null
+    customization_template?: Record<string, string | string[]> | null
+    brand?: string | null
+    hs_code?: string | null
+    is_featured?: boolean | null
+    material?: string | null
+    origin_country?: string | null
+    collection?: string | null
+    warranty_period?: string | null
+    care_instructions?: string | null
+    features?: string[] | null
+    is_customizable?: boolean | null
+    shipping_class?: string | null
+    return_policy?: string | null
+    seo_title?: string | null
+    seo_description?: string | null
+} & StatusSectionInitialData
+
+const sortByPosition = <T extends { position?: number | null }>(left: T, right: T) => {
+    return (left.position || 0) - (right.position || 0)
+}
+
+const getOrderedVariantEntries = (
+    optionValues: Record<string, string> = {},
+    optionOrder: string[] = Object.keys(optionValues)
+) => {
+    const normalizedOptionLookup = new Map<string, string>()
+
+    Object.entries(optionValues).forEach(([name, value]) => {
+        const trimmedName = name.trim()
+        const trimmedValue = value.trim()
+
+        if (!trimmedName || !trimmedValue) {
+            return
+        }
+
+        normalizedOptionLookup.set(trimmedName, trimmedValue)
+    })
+
+    return optionOrder
+        .map((name) => {
+            const trimmedName = name.trim()
+            const value = normalizedOptionLookup.get(trimmedName)
+
+            if (!trimmedName || !value) {
+                return null
+            }
+
+            return [trimmedName, value] as const
+        })
+        .filter(Boolean) as Array<readonly [string, string]>
+}
+
+const buildVariantOptionSignature = (
+    options: Record<string, string> = {},
+    optionOrder: string[] = Object.keys(options)
+) => {
+    const sortedEntries = getOrderedVariantEntries(options, optionOrder)
+        .map(([name, value]) => [name.trim().toLowerCase(), value.trim().toLowerCase()] as const)
+
+    return sortedEntries.length > 0 ? JSON.stringify(sortedEntries) : null
+}
+
+const buildVariantValueSignature = (values: Array<string | null | undefined> = []) => {
+    const normalizedValues = values
+        .map((value) => value?.trim().toLowerCase())
+        .filter((value): value is string => Boolean(value))
+
+    return normalizedValues.length > 0 ? JSON.stringify(normalizedValues) : null
+}
+
+const hydrateOptions = (initialProduct?: InitialProduct): Option[] => {
+    if (!initialProduct?.product_options) {
+        return []
+    }
+
+    return initialProduct.product_options
+        .slice()
+        .sort(sortByPosition)
+        .map((option) => ({
             id: option.id,
             name: option.name || '',
-            values: option.values || option.product_option_values
-                ?.slice()
-                .sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
-                .map((value: any) => value.value)
-                .filter(Boolean) || [],
+            values: (option.values || option.product_option_values?.slice().sort(sortByPosition).map((value) => value.value || ''))
+                ?.filter(Boolean) || [],
         }))
-    })
-    const [variants, setVariants] = useState<Variant[]>(() => {
-        if (!initialProduct) return []
-        return initialProduct.product_variants?.map((v: any) => {
-            const optionEntries = (v.variant_option_values || [])
-                .map((link: any) => {
-                    const optionName = link.product_option_values?.product_options?.name
-                    const optionValue = link.product_option_values?.value
+}
 
-                    if (!optionName || !optionValue) {
-                        return null
-                    }
+const hydrateVariants = (initialProduct?: InitialProduct): Variant[] => {
+    if (!initialProduct?.product_variants) {
+        return []
+    }
 
-                    return [optionName, optionValue] as const
-                })
-                .filter(Boolean) as Array<readonly [string, string]>
+    return initialProduct.product_variants.map((variant) => {
+        const orderedOptionEntries = (variant.variant_option_values || [])
+            .slice()
+            .sort((left, right) => {
+                const leftOptionPosition = left.product_option_values?.product_options?.position || 0
+                const rightOptionPosition = right.product_option_values?.product_options?.position || 0
 
-            const optionMap = Object.fromEntries(optionEntries)
-            const title = optionEntries.map(([, value]) => value).join(' / ') || v.sku || 'Variant'
+                if (leftOptionPosition !== rightOptionPosition) {
+                    return leftOptionPosition - rightOptionPosition
+                }
 
-            return ({
-            ...v,
+                return (left.product_option_values?.position || 0) - (right.product_option_values?.position || 0)
+            })
+            .map((link) => {
+                const optionName = link.product_option_values?.product_options?.name
+                const optionValue = link.product_option_values?.value
+
+                if (!optionName || !optionValue) {
+                    return null
+                }
+
+                return [optionName, optionValue] as const
+            })
+            .filter(Boolean) as Array<readonly [string, string]>
+
+        const optionMap = Object.fromEntries(orderedOptionEntries)
+        const optionOrder = orderedOptionEntries.map(([name]) => name)
+        const title = variant.title || orderedOptionEntries.map(([, value]) => value).join(' / ') || variant.sku || 'Variant'
+
+        return {
+            id: variant.id,
             title,
+            option_signature: buildVariantOptionSignature(optionMap, optionOrder) || variant.option_signature || null,
             options: optionMap,
-            sku: v.sku ?? '',
-            barcode: v.barcode ?? '',
-            price: Number(v.price ?? 0),
-            compare_at_price: v.compare_at_price ?? null,
-            cost_price: v.cost_price ?? null,
-            quantity: Number(v.inventory_items?.[0]?.available_quantity ?? 0),
-            reorder_point: Number(v.inventory_items?.[0]?.reorder_point ?? 10),
-            bin_location: v.inventory_items?.[0]?.bin_location || '',
-            images: v.variant_media
+            sku: variant.sku ?? '',
+            barcode: variant.barcode ?? '',
+            price: Number(variant.price ?? 0),
+            compare_at_price: variant.compare_at_price ?? null,
+            cost_price: variant.cost_price ?? null,
+            quantity: Number(variant.inventory_items?.[0]?.available_quantity ?? variant.quantity ?? 0),
+            reorder_point: Number(variant.inventory_items?.[0]?.reorder_point ?? variant.reorder_point ?? 10),
+            bin_location: variant.inventory_items?.[0]?.bin_location || variant.bin_location || '',
+            images: variant.variant_media
                 ?.slice()
-                .sort((a: any, b: any) => (a.position || 0) - (b.position || 0))
-                .map((m: any) => m.media_url)
-                .filter(Boolean) || []
-        })
-        }) || []
+                .sort(sortByPosition)
+                .map((media) => media.media_url)
+                .filter((url): url is string => Boolean(url)) || variant.images?.filter(Boolean) || [],
+            weight_value: variant.weight_value ?? 0,
+            weight_unit: variant.weight_unit ?? 'g',
+            dimension_length: variant.dimension_length ?? 0,
+            dimension_width: variant.dimension_width ?? 0,
+            dimension_height: variant.dimension_height ?? 0,
+            dimension_unit: variant.dimension_unit ?? 'cm',
+        }
     })
-    const [categories, setCategories] = useState<{ id: string, name: string, parent_id: string | null }[]>([])
+}
+
+const generateCombinations = (
+    optionList: Option[],
+    currentCombo: Record<string, string> = {}
+): Record<string, string>[] => {
+    if (optionList.length === 0) {
+        return [currentCombo]
+    }
+
+    const [first, ...rest] = optionList
+    const combinations: Record<string, string>[] = []
+
+    for (const value of first.values) {
+        combinations.push(...generateCombinations(rest, { ...currentCombo, [first.name]: value }))
+    }
+
+    return combinations
+}
+
+const regenerateVariants = (nextOptions: Option[], currentVariants: Variant[]): Variant[] => {
+    if (nextOptions.length === 0) {
+        return []
+    }
+
+    if (nextOptions.some((option) => !option.name.trim() || option.values.length === 0)) {
+        return currentVariants
+    }
+
+    const combos = generateCombinations(nextOptions)
+    const optionOrder = nextOptions.map((option) => option.name)
+
+    return combos.map((combo) => {
+        const title = Object.values(combo).join(' / ')
+        const optionSignature = buildVariantOptionSignature(combo, optionOrder)
+        const valueSignature = buildVariantValueSignature(Object.values(combo))
+        const existing = currentVariants.find((variant) => {
+            const existingSignature = variant.option_signature || buildVariantOptionSignature(variant.options, optionOrder)
+            if (existingSignature === optionSignature) {
+                return true
+            }
+
+            const existingValueSignature = buildVariantValueSignature(Object.values(variant.options))
+            if (existingValueSignature && existingValueSignature === valueSignature) {
+                return true
+            }
+
+            return variant.title.trim().toLowerCase() === title.trim().toLowerCase()
+        })
+
+        if (existing) {
+            return {
+                ...existing,
+                title,
+                option_signature: optionSignature,
+                options: combo,
+            }
+        }
+
+        return {
+            id: crypto.randomUUID(),
+            title,
+            option_signature: optionSignature,
+            options: combo,
+            price: 0,
+            sku: '',
+            quantity: 0,
+            images: [],
+            compare_at_price: 0,
+            cost_price: 0,
+            barcode: '',
+            weight_value: 0,
+            weight_unit: 'g',
+            dimension_length: 0,
+            dimension_width: 0,
+            dimension_height: 0,
+            dimension_unit: 'cm',
+            reorder_point: 10,
+            bin_location: '',
+        }
+    })
+}
+
+export default function ProductForm({ initialProduct }: { initialProduct?: InitialProduct }) {
+    const router = useRouter()
+    const formRef = useRef<HTMLFormElement | null>(null)
+    const initialPrimaryVariant = initialProduct?.product_variants?.[0]
+    const initialPrimaryInventory = initialPrimaryVariant?.inventory_items?.[0]
+    const [loading, setLoading] = useState(false)
+    const [currentStep, setCurrentStep] = useState(1)
+    const [images, setImages] = useState<string[]>(
+        initialProduct?.product_media?.map((media) => media.media_url).filter((url): url is string => Boolean(url)) || []
+    )
+    const [options, setOptions] = useState<Option[]>(() => hydrateOptions(initialProduct))
+    const [variants, setVariants] = useState<Variant[]>(() => hydrateVariants(initialProduct))
+    const [categories, setCategories] = useState<Category[]>([])
     const [selectedParentId, setSelectedParentId] = useState<string>('')
     const [selectedSubCategoryId, setSelectedSubCategoryId] = useState<string>('')
     const [activeVariantTab, setActiveVariantTab] = useState('general')
@@ -111,82 +366,25 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
     const [alertOpen, setAlertOpen] = useState(false)
     const [alertMessage, setAlertMessage] = useState('')
 
-    // Helper to generate combinations
-    useEffect(() => {
-        if (options.length === 0) {
-            setVariants([])
-            return
-        }
-
-        const generateCombinations = (opts: Option[], currentCombo: Record<string, string> = {}): Record<string, string>[] => {
-            if (opts.length === 0) {
-                return [currentCombo]
-            }
-
-            const [first, ...rest] = opts
-            const combinations: Record<string, string>[] = []
-
-            for (const value of first.values) {
-                combinations.push(...generateCombinations(rest, { ...currentCombo, [first.name]: value }))
-            }
-
-            return combinations
-        }
-
-        // Only generate if all options have at least one value
-        if (options.some(opt => opt.values.length === 0)) return
-
-        const combos = generateCombinations(options)
-
-        // Map combos to variants, preserving existing data if possible
-        const newVariants = combos.map((combo, index) => {
-            const title = Object.values(combo).join(' / ')
-            // specific logic to try and keep existing values could go here, 
-            // but for now we regenerate. 
-            // Improve: look for existing variant with same options to preserve price/sku
-            const existing = variants.find(v =>
-                JSON.stringify(v.options) === JSON.stringify(combo)
-            )
-
-            return existing || {
-                id: crypto.randomUUID(),
-                title,
-                options: combo,
-                price: 0,
-                sku: '',
-                quantity: 0,
-                images: [],
-                compare_at_price: 0,
-                cost_price: 0,
-                barcode: '',
-                weight_value: 0,
-                weight_unit: 'g',
-                dimension_length: 0,
-                dimension_width: 0,
-                dimension_height: 0,
-                dimension_unit: 'cm',
-                reorder_point: 10,
-                bin_location: '',
-            }
-        })
-
-        setVariants(newVariants)
-    }, [options]) // Watch options to regenerate variants
+    const syncOptionsAndVariants = (nextOptions: Option[]) => {
+        setOptions(nextOptions)
+        setVariants((currentVariants) => regenerateVariants(nextOptions, currentVariants))
+    }
 
     const addOption = () => {
-        setOptions([...options, { id: crypto.randomUUID(), name: '', values: [] }])
+        syncOptionsAndVariants([...options, { id: crypto.randomUUID(), name: '', values: [] }])
     }
 
     const removeOption = (index: number) => {
         const newOptions = [...options]
         newOptions.splice(index, 1)
-        setOptions(newOptions)
+        syncOptionsAndVariants(newOptions)
     }
 
     const updateOptionName = (index: number, name: string) => {
         const newOptions = [...options]
         newOptions[index].name = name
-        setOptions(newOptions)
+        syncOptionsAndVariants(newOptions)
     }
 
     const addOptionValue = (index: number, value: string) => {
@@ -194,17 +392,17 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
         const newOptions = [...options]
         if (!newOptions[index].values.includes(value)) {
             newOptions[index].values.push(value)
-            setOptions(newOptions)
+            syncOptionsAndVariants(newOptions)
         }
     }
 
     const removeOptionValue = (optionIndex: number, valueIndex: number) => {
         const newOptions = [...options]
         newOptions[optionIndex].values.splice(valueIndex, 1)
-        setOptions(newOptions)
+        syncOptionsAndVariants(newOptions)
     }
 
-    const updateVariant = (index: number, field: keyof Variant, value: any) => {
+    const updateVariant = (index: number, field: keyof Variant, value: Variant[keyof Variant]) => {
         const newVariants = [...variants]
         newVariants[index] = { ...newVariants[index], [field]: value }
         setVariants(newVariants)
@@ -212,6 +410,11 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
+
+        if (currentStep !== steps.length || loading) {
+            return
+        }
+
         setLoading(true)
         const formData = new FormData(event.currentTarget)
 
@@ -238,6 +441,19 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
         }
 
         setLoading(false)
+    }
+
+    const handlePrimaryAction = () => {
+        if (loading) {
+            return
+        }
+
+        if (currentStep < steps.length) {
+            nextStep()
+            return
+        }
+
+        formRef.current?.requestSubmit()
     }
 
     const steps = [
@@ -310,7 +526,7 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                 </nav>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-8 mt-[4.5rem]">
+            <form ref={formRef} onSubmit={handleSubmit} className="space-y-8 mt-[4.5rem]">
 
                 {/* Step 1: Basic Info */}
                 <div className={currentStep === 1 ? 'block' : 'hidden'}>
@@ -392,7 +608,7 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                             type="number"
                                             step="0.01"
                                             placeholder="0.00"
-                                            defaultValue={initialProduct?.product_variants?.[0]?.price}
+                                            defaultValue={initialPrimaryVariant?.price ?? undefined}
                                         />
                                         <Input
                                             label="Compare at"
@@ -400,7 +616,7 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                             type="number"
                                             step="0.01"
                                             placeholder="0.00"
-                                            defaultValue={initialProduct?.product_variants?.[0]?.compare_at_price}
+                                            defaultValue={initialPrimaryVariant?.compare_at_price ?? undefined}
                                         />
                                         <div className="md:col-span-2">
                                             <Input
@@ -410,7 +626,7 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                                 step="0.01"
                                                 placeholder="0.00"
                                                 helperText="Customers won’t see this."
-                                                defaultValue={initialProduct?.product_variants?.[0]?.cost_price}
+                                                defaultValue={initialPrimaryVariant?.cost_price ?? undefined}
                                             />
                                         </div>
                                     </div>
@@ -432,13 +648,13 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                                 type="text"
                                                 placeholder="Auto-generated if blank"
                                                 helperText="Leave blank to auto-generate (Starts with CF-)."
-                                                defaultValue={initialProduct?.product_variants?.[0]?.sku}
+                                                defaultValue={initialPrimaryVariant?.sku ?? undefined}
                                             />
                                             <Input
                                                 label="Barcode (ISBN, UPC, GTIN, etc.)"
                                                 name="barcode"
                                                 type="text"
-                                                defaultValue={initialProduct?.product_variants?.[0]?.barcode}
+                                                defaultValue={initialPrimaryVariant?.barcode ?? undefined}
                                             />
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -447,13 +663,13 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                                 required
                                                 name="quantity"
                                                 type="number"
-                                                defaultValue={initialProduct?.product_variants?.[0]?.inventory_items?.[0]?.available_quantity || 0}
+                                                defaultValue={initialPrimaryInventory?.available_quantity ?? 0}
                                             />
                                             <Input
                                                 label="Reorder Point"
                                                 name="reorder_point"
                                                 type="number"
-                                                defaultValue={initialProduct?.product_variants?.[0]?.inventory_items?.[0]?.reorder_point || 10}
+                                                defaultValue={initialPrimaryInventory?.reorder_point ?? 10}
                                                 helperText="Low stock alert level"
                                             />
                                             <Input
@@ -461,7 +677,7 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                                 name="bin_location"
                                                 type="text"
                                                 placeholder="e.g. A-12"
-                                                defaultValue={initialProduct?.product_variants?.[0]?.inventory_items?.[0]?.bin_location}
+                                                defaultValue={initialPrimaryInventory?.bin_location ?? undefined}
                                             />
                                         </div>
                                     </div>
@@ -493,7 +709,7 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                     name="seo_title"
                                     type="text"
                                     helperText="Optimal length is 50-60 characters."
-                                    defaultValue={initialProduct?.seo_title}
+                                    defaultValue={initialProduct?.seo_title ?? undefined}
                                 />
                                 <div className="space-y-1">
                                     <label className="block text-sm font-medium text-gray-700">SEO Description</label>
@@ -502,7 +718,7 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                         rows={3}
                                         className="block w-full rounded-md border-gray-300 shadow-sm focus:border-gray-900 focus:ring-gray-900 sm:text-sm p-3"
                                         placeholder="Optimal length is 150-160 characters."
-                                        defaultValue={initialProduct?.seo_description}
+                                        defaultValue={initialProduct?.seo_description ?? undefined}
                                     />
                                 </div>
                             </div>
@@ -522,37 +738,32 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                         Back
                     </button>
 
-                    {currentStep < steps.length ? (
-                        <button
-                            type="button"
-                            onClick={nextStep}
-                            className="inline-flex justify-center items-center py-2.5 px-6 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-gray-900 hover:bg-black focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-all"
-                        >
-                            Next
-                            <ChevronRight className="w-4 h-4 ml-2" />
-                        </button>
-                    ) : (
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="inline-flex justify-center items-center py-2.5 px-6 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-[#0f9d58] hover:bg-[#0b8043] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0f9d58] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-                        >
-                            {loading ? (
-                                <>
-                                    <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    Publishing...
-                                </>
-                            ) : (
-                                <>
-                                    <Save className="w-4 h-4 mr-2" />
-                                    {initialProduct ? 'Save Changes' : 'Publish Product'}
-                                </>
-                            )}
-                        </button>
-                    )}
+                    <button
+                        type="button"
+                        onClick={handlePrimaryAction}
+                        disabled={loading}
+                        className={`inline-flex justify-center items-center py-2.5 px-6 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white transition-all disabled:opacity-70 disabled:cursor-not-allowed ${currentStep < steps.length ? 'bg-gray-900 hover:bg-black focus:ring-gray-900' : 'bg-[#0f9d58] hover:bg-[#0b8043] focus:ring-[#0f9d58]'} focus:outline-none focus:ring-2 focus:ring-offset-2`}
+                    >
+                        {currentStep < steps.length ? (
+                            <>
+                                Next
+                                <ChevronRight className="w-4 h-4 ml-2" />
+                            </>
+                        ) : loading ? (
+                            <>
+                                <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Publishing...
+                            </>
+                        ) : (
+                            <>
+                                <Save className="w-4 h-4 mr-2" />
+                                {initialProduct ? 'Save Changes' : 'Publish Product'}
+                            </>
+                        )}
+                    </button>
                 </div>
             </form>
 
@@ -624,9 +835,13 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
 
                             {activeVariantTab === 'pricing' && (
                                 <div className="space-y-4">
+                                    <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3">
+                                        <p className="text-sm font-medium text-amber-900">Selling price is edited in the variants table.</p>
+                                        <p className="text-xs text-amber-800 mt-1">This tab is only for internal cost and optional original/MRP display price.</p>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <Input
-                                            label="Cost Price"
+                                            label="Cost Price (Internal)"
                                             type="number"
                                             step="0.01"
                                             value={variants.find(v => v.id === editingVariantId)?.cost_price ?? ''}
@@ -637,10 +852,10 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                                     updateVariant(index, 'cost_price', next)
                                                 }
                                             }}
-                                            helperText="Your purchase cost"
+                                            helperText="Internal purchase cost. Customers do not see this."
                                         />
                                         <Input
-                                            label="Compare At Price"
+                                            label="Original / Compare At Price"
                                             type="number"
                                             step="0.01"
                                             value={variants.find(v => v.id === editingVariantId)?.compare_at_price ?? ''}
@@ -651,7 +866,7 @@ export default function ProductForm({ initialProduct }: { initialProduct?: any }
                                                     updateVariant(index, 'compare_at_price', next)
                                                 }
                                             }}
-                                            helperText="Original price (strikethrough)"
+                                            helperText="Optional strikethrough or MRP-style display price."
                                         />
                                     </div>
                                 </div>

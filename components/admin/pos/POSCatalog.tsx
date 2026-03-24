@@ -28,6 +28,30 @@ export default function POSCatalog({
 }: POSCatalogProps) {
     const categoryScrollRef = useRef<HTMLDivElement>(null)
 
+    const getVariantStock = (variant: PosProduct['product_variants'][number]) => {
+        return (variant.inventory_items ?? []).reduce((sum, inventoryItem) => {
+            return sum + Number(inventoryItem.available_quantity ?? 0)
+        }, 0)
+    }
+
+    const isVariantSellable = (variant: PosProduct['product_variants'][number]) => {
+        const sellableStatus = (variant.sellable_status ?? '').trim().toLowerCase()
+        if (sellableStatus) {
+            return sellableStatus === 'sellable'
+        }
+
+        return variant.is_active !== false
+    }
+
+    const getPreferredVariant = (product: PosProduct) => {
+        const sellableVariants = product.product_variants.filter(isVariantSellable)
+
+        return sellableVariants.find((variant) => getVariantStock(variant) > 0)
+            ?? sellableVariants.find((variant) => variant.is_default)
+            ?? sellableVariants[0]
+            ?? null
+    }
+
     // Auto-scroll to selected category if needed (optional polish)
 
     return (
@@ -92,15 +116,14 @@ export default function POSCatalog({
                 ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 pb-32 lg:pb-4">
                         {products.map(product => {
-                            // Prefer the first in-stock variant; fall back to the first variant
-                            const variant = product.product_variants.find(v => Number(v.inventory_items?.[0]?.available_quantity ?? 0) > 0)
-                                ?? product.product_variants?.[0]
+                            const variant = getPreferredVariant(product)
 
                             const price = Number(variant?.price ?? 0)
                             const compareAt = Number(variant?.compare_at_price ?? 0)
-                            const stock = Number(variant?.inventory_items?.[0]?.available_quantity ?? 0)
+                            const stock = variant ? getVariantStock(variant) : 0
                             const hasStock = stock > 0
-                            const image = product.product_media?.[0]?.media_url
+                            const image = variant?.variant_media?.find((media) => media.media_url)?.media_url
+                                ?? product.product_media?.[0]?.media_url
                             const skuLabel = variant?.sku ? `SKU ${variant.sku}` : 'Default variant'
 
                             return (
