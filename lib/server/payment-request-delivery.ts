@@ -18,14 +18,10 @@ function getResendConfig() {
     const fromEmail =
         process.env.PAYMENT_REQUEST_FROM_EMAIL ||
         process.env.RESEND_FROM_EMAIL ||
-        null
+        'onboarding@resend.dev'
 
     if (!apiKey) {
         return { error: 'RESEND_API_KEY is not configured.' }
-    }
-
-    if (!fromEmail) {
-        return { error: 'PAYMENT_REQUEST_FROM_EMAIL is not configured.' }
     }
 
     return { apiKey, fromEmail }

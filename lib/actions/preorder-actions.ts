@@ -5,8 +5,9 @@ import { createClient } from '@/lib/supabase'
 import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { sendPaymentRequestEmail, sendPaymentRequestSms } from '@/lib/server/payment-request-delivery'
+import { logAudit } from '@/lib/audit'
 
-const ALLOWED_PREORDER_STATUSES = ['pending', 'fulfilled', 'cancelled'] as const
+const ALLOWED_PREORDER_STATUSES = ['pending', 'payment_pending', 'fulfilled', 'cancelled'] as const
 
 export type PreorderStatus = (typeof ALLOWED_PREORDER_STATUSES)[number]
 type PaymentRequestChannel = 'email' | 'sms'
@@ -34,6 +35,35 @@ function normalizeRequiredPhone(value?: string | null) {
     const normalized = value?.trim() ?? ''
     const digits = normalized.replace(/\D/g, '')
     return digits.length >= 10 ? normalized : null
+}
+
+async function reserveOrderStock(supabase: Awaited<ReturnType<typeof createClient>>, variantId: string, quantity: number, orderId: string) {
+    const { data: reserved, error } = await supabase.rpc('reserve_stock', {
+        p_variant_id: variantId,
+        p_qty: quantity,
+        p_reference: orderId,
+    })
+
+    if (error) {
+        console.error('Reserve Stock RPC Error:', error)
+        throw new Error(error.message || 'Error executing reserve_stock RPC')
+    }
+
+    if (reserved === false) {
+        throw new Error('Insufficient stock is available to convert this preorder into an order.')
+    }
+}
+
+async function releaseOrderStock(supabase: Awaited<ReturnType<typeof createClient>>, variantId: string, quantity: number, orderId: string) {
+    const { error } = await supabase.rpc('release_stock', {
+        p_variant_id: variantId,
+        p_qty: quantity,
+        p_reference: orderId,
+    })
+
+    if (error) {
+        throw error
+    }
 }
 
 export async function getPreorders(status: PreorderStatus | 'all' = 'all') {
@@ -87,13 +117,40 @@ export async function getPreorders(status: PreorderStatus | 'all' = 'all') {
 }
 
 export async function updatePreorderStatus(id: string, status: PreorderStatus) {
-    await requireActionPermission('manage_orders')
+    const access = await requireActionPermission('manage_orders')
 
     if (!ALLOWED_PREORDER_STATUSES.includes(status)) {
         return { error: 'Invalid preorder status.' }
     }
 
     const supabase = await createClient()
+    const { data: currentPreorder, error: fetchError } = await supabase
+        .from('preorders')
+        .select('id, status, order_id, orders ( financial_status )')
+        .eq('id', id)
+        .single()
+
+    if (fetchError || !currentPreorder) {
+        return { error: fetchError?.message || 'Preorder not found.' }
+    }
+
+    const linkedOrder = Array.isArray(currentPreorder.orders)
+        ? currentPreorder.orders[0]
+        : currentPreorder.orders
+    const linkedOrderPaid = linkedOrder?.financial_status === 'paid'
+
+    if (currentPreorder.order_id && status === 'pending') {
+        return { error: 'Preorders linked to orders cannot be moved back to pending.' }
+    }
+
+    if (status === 'fulfilled' && !linkedOrderPaid) {
+        return { error: 'Only paid preorder orders can be marked fulfilled.' }
+    }
+
+    if (status === 'payment_pending' && !currentPreorder.order_id) {
+        return { error: 'Preorders must be linked to an order before they can await payment.' }
+    }
+
     const { error } = await supabase
         .from('preorders')
         .update({ status })
@@ -103,6 +160,21 @@ export async function updatePreorderStatus(id: string, status: PreorderStatus) {
         return { error: error.message }
     }
 
+    await logAudit({
+        actorId: access.user?.id,
+        action: 'preorder.status.update',
+        entityType: 'preorder',
+        entityId: id,
+        before: {
+            status: currentPreorder.status || 'pending',
+            order_id: currentPreorder.order_id || null,
+            order_financial_status: linkedOrder?.financial_status || null,
+        },
+        after: {
+            status,
+        },
+    })
+
     revalidatePath('/admin/preorders')
     revalidatePath('/admin/customers')
 
@@ -110,7 +182,7 @@ export async function updatePreorderStatus(id: string, status: PreorderStatus) {
 }
 
 export async function createPaymentOrderFromPreorder(id: string) {
-    await requireActionPermission('manage_orders')
+    const access = await requireActionPermission('manage_orders')
     const supabase = await createClient()
 
     const { data: preorder, error } = await supabase
@@ -128,6 +200,7 @@ export async function createPaymentOrderFromPreorder(id: string) {
             unit_price,
             quantity,
             status,
+            orders ( financial_status ),
             customers (
                 id,
                 first_name,
@@ -159,7 +232,11 @@ export async function createPaymentOrderFromPreorder(id: string) {
     }
 
     if (preorder.order_id) {
-        return { success: true, orderId: preorder.order_id, alreadyExists: true }
+        const linkedOrder = Array.isArray(preorder.orders)
+            ? preorder.orders[0]
+            : preorder.orders
+        const preorderStatus = linkedOrder?.financial_status === 'paid' ? 'fulfilled' : 'payment_pending'
+        return { success: true, orderId: preorder.order_id, alreadyExists: true, preorderStatus }
     }
 
     if (!preorder.customer_id || !preorder.variant_id) {
@@ -192,6 +269,7 @@ export async function createPaymentOrderFromPreorder(id: string) {
     const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
+            customer_id: preorder.customer_id,
             guest_email: customerEmail,
             guest_name: customerName,
             guest_phone: customerPhone,
@@ -214,6 +292,21 @@ export async function createPaymentOrderFromPreorder(id: string) {
         return { error: orderError?.message || 'Could not create order from preorder.' }
     }
 
+    try {
+        await reserveOrderStock(supabase, preorder.variant_id, quantity, order.id)
+    } catch (reservationError) {
+        await supabase
+            .from('orders')
+            .delete()
+            .eq('id', order.id)
+
+        return {
+            error: reservationError instanceof Error
+                ? reservationError.message
+                : 'Could not reserve stock for this preorder order.'
+        }
+    }
+
     const { error: orderItemError } = await supabase
         .from('order_items')
         .insert({
@@ -231,25 +324,61 @@ export async function createPaymentOrderFromPreorder(id: string) {
         })
 
     if (orderItemError) {
+        await releaseOrderStock(supabase, preorder.variant_id, quantity, order.id).catch(() => undefined)
+        await supabase
+            .from('orders')
+            .delete()
+            .eq('id', order.id)
         return { error: orderItemError.message }
     }
 
     const { error: updateError } = await supabase
         .from('preorders')
         .update({
-            status: 'fulfilled',
+            status: 'payment_pending',
             order_id: order.id,
         })
         .eq('id', preorder.id)
 
     if (updateError) {
+        await releaseOrderStock(supabase, preorder.variant_id, quantity, order.id).catch(() => undefined)
+        await supabase
+            .from('orders')
+            .delete()
+            .eq('id', order.id)
         return { error: updateError.message }
     }
 
     revalidatePath('/admin/preorders')
     revalidatePath('/admin/orders')
 
-    return { success: true, orderId: order.id, orderNumber: order.order_number, alreadyExists: false }
+    await logAudit({
+        actorId: access.user?.id,
+        action: 'preorder.order.create',
+        entityType: 'preorder',
+        entityId: preorder.id,
+        before: {
+            order_id: preorder.order_id || null,
+            status: preorder.status || 'pending',
+        },
+        after: {
+            order_id: order.id,
+            order_number: order.order_number || null,
+            status: 'payment_pending',
+            quantity,
+            unit_price: unitPrice,
+        },
+    })
+
+    if (customerEmail) {
+        try {
+            await sendOrderPaymentRequest(order.id, 'email')
+        } catch (err) {
+            console.error('Failed to auto-send payment email:', err)
+        }
+    }
+
+    return { success: true, orderId: order.id, orderNumber: order.order_number, alreadyExists: false, preorderStatus: 'payment_pending' as const }
 }
 
 export async function getOrderPaymentRequest(orderId: string) {
@@ -369,7 +498,7 @@ async function updatePaymentRequestDeliveryLog({
 }
 
 export async function sendOrderPaymentRequest(orderId: string, channel: PaymentRequestChannel) {
-    await requireActionPermission('manage_orders')
+    const access = await requireActionPermission('manage_orders')
     const supabase = await createClient()
 
     const paymentRequest = await getOrderPaymentRequest(orderId)
@@ -427,6 +556,18 @@ export async function sendOrderPaymentRequest(orderId: string, channel: PaymentR
             })
             revalidatePath(`/admin/orders/${orderId}`)
 
+            await logAudit({
+                actorId: access.user?.id,
+                action: 'preorder.payment_request.send',
+                entityType: 'order',
+                entityId: orderId,
+                after: {
+                    channel,
+                    recipient: paymentRequest.emailRecipient,
+                    payment_url: paymentRequest.paymentUrl,
+                },
+            })
+
             return {
                 success: true,
                 channel,
@@ -461,6 +602,18 @@ export async function sendOrderPaymentRequest(orderId: string, channel: PaymentR
             providerReference: delivery.deliveryId,
         })
         revalidatePath(`/admin/orders/${orderId}`)
+
+        await logAudit({
+            actorId: access.user?.id,
+            action: 'preorder.payment_request.send',
+            entityType: 'order',
+            entityId: orderId,
+            after: {
+                channel,
+                recipient: paymentRequest.smsRecipient,
+                payment_url: paymentRequest.paymentUrl,
+            },
+        })
 
         return {
             success: true,

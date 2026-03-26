@@ -80,6 +80,7 @@ type ProductVariantRow = {
     inventory_items?: InventoryItemRow[] | null
     variant_media?: ProductMediaRow[] | null
     variant_option_values?: VariantOptionValueLinkRow[] | null
+    allow_preorder?: boolean | null
 }
 
 type InitialProduct = {
@@ -232,6 +233,7 @@ const hydrateVariants = (initialProduct?: InitialProduct): Variant[] => {
             dimension_width: variant.dimension_width ?? 0,
             dimension_height: variant.dimension_height ?? 0,
             dimension_unit: variant.dimension_unit ?? 'cm',
+            allow_preorder: variant.allow_preorder ?? false,
         }
     })
 }
@@ -313,6 +315,7 @@ const regenerateVariants = (nextOptions: Option[], currentVariants: Variant[]): 
             dimension_unit: 'cm',
             reorder_point: 10,
             bin_location: '',
+            allow_preorder: false,
         }
     })
 }
@@ -680,6 +683,21 @@ export default function ProductForm({ initialProduct }: { initialProduct?: Initi
                                                 defaultValue={initialPrimaryInventory?.bin_location ?? undefined}
                                             />
                                         </div>
+                                        <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+                                            <div>
+                                                <h4 className="text-sm font-medium text-gray-900">Allow Preorders</h4>
+                                                <p className="text-sm text-gray-500">Allow customers to purchase this item when it is out of stock.</p>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input 
+                                                    type="checkbox" 
+                                                    name="allow_preorder" 
+                                                    className="sr-only peer"
+                                                    defaultChecked={initialPrimaryVariant?.allow_preorder ?? false}
+                                                />
+                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-gray-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-900"></div>
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -873,30 +891,50 @@ export default function ProductForm({ initialProduct }: { initialProduct?: Initi
                             )}
 
                             {activeVariantTab === 'inventory' && (
-                                <div className="grid grid-cols-2 gap-4">
-                                    <Input
-                                        label="Reorder Point"
-                                        type="number"
-                                        value={variants.find(v => v.id === editingVariantId)?.reorder_point || 10}
-                                        onChange={(e) => {
-                                            const index = variants.findIndex(v => v.id === editingVariantId)
-                                            if (index !== -1) {
-                                                const next = e.target.value === '' ? 0 : parseInt(e.target.value)
-                                                updateVariant(index, 'reorder_point', isNaN(next) ? 0 : next)
-                                            }
-                                        }}
-                                        helperText="Alert when stock is low"
-                                    />
-                                    <Input
-                                        label="Bin Location"
-                                        type="text"
-                                        value={variants.find(v => v.id === editingVariantId)?.bin_location || ''}
-                                        onChange={(e) => {
-                                            const index = variants.findIndex(v => v.id === editingVariantId)
-                                            if (index !== -1) updateVariant(index, 'bin_location', e.target.value)
-                                        }}
-                                        placeholder="e.g. Rack A-12"
-                                    />
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <Input
+                                            label="Reorder Point"
+                                            type="number"
+                                            value={variants.find(v => v.id === editingVariantId)?.reorder_point || 10}
+                                            onChange={(e) => {
+                                                const index = variants.findIndex(v => v.id === editingVariantId)
+                                                if (index !== -1) {
+                                                    const next = e.target.value === '' ? 0 : parseInt(e.target.value)
+                                                    updateVariant(index, 'reorder_point', isNaN(next) ? 0 : next)
+                                                }
+                                            }}
+                                            helperText="Alert when stock is low"
+                                        />
+                                        <Input
+                                            label="Bin Location"
+                                            type="text"
+                                            value={variants.find(v => v.id === editingVariantId)?.bin_location || ''}
+                                            onChange={(e) => {
+                                                const index = variants.findIndex(v => v.id === editingVariantId)
+                                                if (index !== -1) updateVariant(index, 'bin_location', e.target.value)
+                                            }}
+                                            placeholder="e.g. Rack A-12"
+                                        />
+                                    </div>
+                                    <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+                                        <div>
+                                            <h4 className="text-sm font-medium text-gray-900">Allow Preorders</h4>
+                                            <p className="text-sm text-gray-500">Allow customers to purchase this variant when it is out of stock.</p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                className="sr-only peer"
+                                                checked={variants.find(v => v.id === editingVariantId)?.allow_preorder ?? false}
+                                                onChange={(e) => {
+                                                    const index = variants.findIndex(v => v.id === editingVariantId)
+                                                    if (index !== -1) updateVariant(index, 'allow_preorder', e.target.checked)
+                                                }}
+                                            />
+                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-gray-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gray-900"></div>
+                                        </label>
+                                    </div>
                                 </div>
                             )}
 

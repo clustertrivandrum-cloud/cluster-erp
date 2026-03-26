@@ -14,6 +14,15 @@ type PreorderRecord = {
     customer_id?: string | null
     variant_id?: string | null
     order_id?: string | null
+    product_title?: string | null
+    product_slug?: string | null
+    image_url?: string | null
+    variant_title?: string | null
+    variant_options?: Array<{
+        name?: string | null
+        value?: string | null
+    }> | null
+    unit_price?: number | null
     orders?: {
         id?: string | null
         order_number?: number | null
@@ -58,17 +67,33 @@ type PaymentRequestState = {
 const statusFilters: Array<{ label: string; value: PreorderStatus | 'all' }> = [
     { label: 'All', value: 'all' },
     { label: 'Pending', value: 'pending' },
+    { label: 'Payment Pending', value: 'payment_pending' },
     { label: 'Fulfilled', value: 'fulfilled' },
     { label: 'Cancelled', value: 'cancelled' },
 ]
 
 const statusClasses: Record<string, string> = {
     pending: 'bg-yellow-100 text-yellow-800',
+    payment_pending: 'bg-blue-100 text-blue-800',
     fulfilled: 'bg-green-100 text-green-800',
     cancelled: 'bg-red-100 text-red-800',
 }
 
 function formatVariantLabel(preorder: PreorderRecord) {
+    const snapshotParts = (preorder.variant_options || [])
+        .map((item) => {
+            return item?.name && item?.value ? `${item.name}: ${item.value}` : null
+        })
+        .filter((value): value is string => Boolean(value))
+
+    if (snapshotParts.length > 0) {
+        return snapshotParts.join(' / ')
+    }
+
+    if (preorder.variant_title && preorder.variant_title !== 'Default Variant') {
+        return preorder.variant_title
+    }
+
     const parts = (preorder.product_variants?.variant_option_values || [])
         .map((item) => {
             const optionName = item?.product_option_values?.product_options?.name
@@ -113,10 +138,6 @@ export default function AdminPreordersPage() {
         () => preorders.filter((preorder) => (preorder.status || 'pending') === 'pending').length,
         [preorders]
     )
-
-    useEffect(() => {
-        setPage(1)
-    }, [selectedStatus])
 
     const totalPages = Math.max(1, Math.ceil(preorders.length / PAGE_SIZE))
     const currentPage = Math.min(page, totalPages)
@@ -170,7 +191,7 @@ export default function AdminPreordersPage() {
                 preorder.id === preorderId
                     ? {
                         ...preorder,
-                        status: 'fulfilled',
+                        status: result.preorderStatus || 'payment_pending',
                         order_id: result.orderId,
                         orders: {
                             ...(preorder.orders || {}),
@@ -300,7 +321,10 @@ export default function AdminPreordersPage() {
                     <button
                         key={filter.value}
                         type="button"
-                        onClick={() => setSelectedStatus(filter.value)}
+                        onClick={() => {
+                            setSelectedStatus(filter.value)
+                            setPage(1)
+                        }}
                         className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                             selectedStatus === filter.value
                                 ? 'bg-gray-900 text-white'
@@ -346,9 +370,10 @@ export default function AdminPreordersPage() {
                             visiblePreorders.map((preorder) => {
                                 const customerName = [preorder.customers?.first_name, preorder.customers?.last_name].filter(Boolean).join(' ')
                                 const variantLabel = formatVariantLabel(preorder)
-                                const productName = preorder.product_variants?.products?.title || 'Product unavailable'
+                                const productName = preorder.product_title || preorder.product_variants?.products?.title || 'Product unavailable'
                                 const productId = preorder.product_variants?.products?.id
                                 const paymentRequest = paymentRequests[preorder.id]
+                                const displayPrice = preorder.unit_price ?? preorder.product_variants?.price ?? null
 
                                 return (
                                     <tr key={preorder.id} className="hover:bg-gray-50 transition-colors align-top">
@@ -363,8 +388,8 @@ export default function AdminPreordersPage() {
                                                 )}
                                                 {variantLabel && <div className="text-xs text-gray-500">{variantLabel}</div>}
                                                 <div className="text-xs text-gray-500">Qty {preorder.quantity || 1}</div>
-                                                {preorder.product_variants?.price ? (
-                                                    <div className="text-xs text-gray-500">₹{Number(preorder.product_variants.price).toFixed(2)}</div>
+                                                {displayPrice ? (
+                                                    <div className="text-xs text-gray-500">₹{Number(displayPrice).toFixed(2)}</div>
                                                 ) : null}
                                             </div>
                                         </td>

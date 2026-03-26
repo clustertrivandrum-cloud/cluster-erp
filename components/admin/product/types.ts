@@ -24,4 +24,5 @@ export interface Variant {
     dimension_unit?: string | null
     reorder_point?: number | null
     bin_location?: string | null
+    allow_preorder?: boolean | null
 }

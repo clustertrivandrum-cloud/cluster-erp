@@ -162,6 +162,7 @@ const normalizeVariants = (variants: ProductVariantInput[] = []) => {
         images: Array.isArray(variant.images)
             ? variant.images.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
             : [],
+        allow_preorder: typeof variant.allow_preorder === 'boolean' ? variant.allow_preorder : false,
     }))
 }
 
@@ -443,6 +444,7 @@ async function syncProductOptionsAndVariants(
             dimension_width: toNullableFloat(variant.dimension_width),
             dimension_height: toNullableFloat(variant.dimension_height),
             dimension_unit: variant.dimension_unit || 'cm',
+            allow_preorder: variant.allow_preorder ?? false,
             is_active: getVariantIsActive(productStatus),
         }
 
@@ -530,6 +532,7 @@ type ProductVariantInput = {
     dimension_height?: string | number | null
     dimension_unit?: string | null
     images?: string[]
+    allow_preorder?: boolean | null
 }
 
 type ExistingOptionRow = {
@@ -743,6 +746,7 @@ export async function createProduct(formData: FormData) {
             price: parsed.data.price,
             compare_at_price: parsed.data.compare_at_price || null,
             cost_price: parsed.data.cost_price || null,
+            allow_preorder: formData.get('allow_preorder') === 'on',
             is_active: getVariantIsActive(product.status)
         }
 
@@ -1122,6 +1126,7 @@ export async function updateProduct(id: string, formData: FormData) {
             price: parseFloat(formData.get('price') as string) || 0,
             compare_at_price: formData.get('compare_at_price') ? parseFloat(formData.get('compare_at_price') as string) : null,
             cost_price: formData.get('cost_price') ? parseFloat(formData.get('cost_price') as string) : null,
+            allow_preorder: formData.get('allow_preorder') === 'on',
             is_active: getVariantIsActive(product.status)
         }
 
