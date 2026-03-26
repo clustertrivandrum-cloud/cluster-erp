@@ -28,7 +28,6 @@ import {
   getOrder,
   getOrderTimeline,
   refundOrder,
-  repairOrders,
   updateOrderHeader,
   updateOrderLineItems,
   updateOrderShipment,
@@ -337,7 +336,6 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [updating, setUpdating] = useState(false)
-  const [repairing, setRepairing] = useState(false)
   const [refundOpen, setRefundOpen] = useState(false)
   const [refundAmount, setRefundAmount] = useState('')
   const [refundReason, setRefundReason] = useState('')
@@ -516,25 +514,6 @@ export default function OrderDetailPage() {
       setConfirmOpen(false)
       setPendingAction(null)
     }
-  }
-
-  const handleRepair = async () => {
-    if (!order) {
-      return
-    }
-
-    setRepairing(true)
-    setPageError(null)
-    const result = await repairOrders([order.id])
-    setRepairing(false)
-
-    if (result.error) {
-      setPageError(result.error)
-      return
-    }
-
-    setPageMessage(`${result.updated || 0} repair change applied.`)
-    await refreshOrder()
   }
 
   const handleHeaderSave = async () => {
@@ -733,15 +712,6 @@ export default function OrderDetailPage() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={handleRepair}
-            disabled={repairing}
-            className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${repairing || refreshing ? 'animate-spin' : ''}`} />
-            {repairing ? 'Repairing...' : 'Repair Data'}
-          </button>
-          <button
-            type="button"
             onClick={refreshOrder}
             className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
           >
@@ -775,8 +745,14 @@ export default function OrderDetailPage() {
           {pageError}
         </div>
       )}
+      {order.data_issues.length > 0 && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 shadow-sm">
+          <p className="font-semibold">This order needs a quick data review.</p>
+          <p className="mt-1">{order.data_issues.slice(0, 2).join(' ')}</p>
+        </div>
+      )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Grand Total</p>
           <p className="mt-3 text-3xl font-black text-gray-900">{formatCurrency(totals.grand, order.currency || 'INR')}</p>
@@ -1214,7 +1190,7 @@ export default function OrderDetailPage() {
               <History className="h-5 w-5 text-gray-400" />
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Timeline</h2>
-                <p className="text-sm text-gray-500">Uses the existing audit log so workflow, shipment, refunds, and repairs stay visible.</p>
+                <p className="text-sm text-gray-500">Recent order activity across workflow, shipment, refunds, and edits.</p>
               </div>
             </div>
             <div className="mt-5 space-y-4">
@@ -1472,10 +1448,10 @@ export default function OrderDetailPage() {
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900">Payment Request Audit</h2>
-            <p className="mt-1 text-sm text-gray-500">Payment-link attempts remain visible alongside the order timeline.</p>
-            {order.payment_request_deliveries && order.payment_request_deliveries.length > 0 ? (
+          {order.payment_request_deliveries && order.payment_request_deliveries.length > 0 && (
+            <div className="rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-bold text-gray-900">Payment Link History</h2>
+              <p className="mt-1 text-sm text-gray-500">Recent payment-link deliveries for this order.</p>
               <div className="mt-4 space-y-4">
                 {order.payment_request_deliveries.map((delivery) => (
                   <div key={delivery.id} className="rounded-2xl border border-gray-200 p-4">
@@ -1505,25 +1481,8 @@ export default function OrderDetailPage() {
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="mt-4 text-sm text-gray-500">No payment requests have been sent for this order yet.</p>
-            )}
-          </div>
-
-          <div className="rounded-[28px] border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900">Data Health</h2>
-            {order.data_issues.length === 0 ? (
-              <p className="mt-4 text-sm text-emerald-700">This order is normalized across fulfillment, payment, totals, and channel fields.</p>
-            ) : (
-              <div className="mt-4 space-y-3">
-                {order.data_issues.map((issue) => (
-                  <div key={issue} className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    {issue}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -25,7 +25,7 @@ export default function AdminShell({
 
       <div className={`flex flex-col lg:pl-64 transition-all duration-300 ${isPOS ? 'h-full' : 'min-h-screen'}`}>
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        <main className={`flex-1 ${isPOS ? 'p-0 overflow-hidden relative' : 'p-4 lg:p-8'}`}>
+        <main className={`flex-1 ${isPOS ? 'overflow-hidden p-0 relative' : 'p-3 sm:p-4 lg:p-8'}`}>
           {children}
         </main>
       </div>

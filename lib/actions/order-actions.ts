@@ -503,10 +503,6 @@ function getFulfillmentStatus(order: Record<string, unknown>): OrderFulfillmentS
     const canonical = normalizeOrderFulfillmentStatus(channel, canonicalRaw)
     const legacy = legacyRaw ? normalizeOrderFulfillmentStatus(channel, legacyRaw) : null
 
-    if (legacyRaw && legacy !== getDefaultFulfillmentStatus(channel)) {
-        return legacy!
-    }
-
     if (canonicalRaw) {
         return canonical
     }
@@ -520,11 +516,11 @@ function getFinancialStatus(order: Record<string, unknown>): OrderPaymentStatus 
     const canonical = canonicalRaw ? normalizeOrderPaymentStatus(canonicalRaw) : null
     const legacy = legacyRaw ? normalizeOrderPaymentStatus(legacyRaw) : null
 
-    if (legacyRaw && legacy !== 'unpaid') {
-        return legacy!
+    if (canonical) {
+        return canonical
     }
 
-    return canonical ?? legacy ?? 'unpaid'
+    return legacy ?? 'unpaid'
 }
 
 function normalizeCustomer(
@@ -596,10 +592,6 @@ function inferSalesChannel(order: Record<string, unknown>): OrderChannel {
     const salesChannel = normalizeOrderChannel(getStringField(order, 'sales_channel'))
     const orderType = normalizeOrderChannel(getStringField(order, 'order_type'))
 
-    if (guestEmail || guestPhone || paymentToken) {
-        return 'online'
-    }
-
     if (salesChannel === 'pos' || orderType === 'pos') {
         return 'pos'
     }
@@ -608,8 +600,16 @@ function inferSalesChannel(order: Record<string, unknown>): OrderChannel {
         return 'online'
     }
 
+    if (paymentToken) {
+        return 'online'
+    }
+
     if (getStringField(order, 'payment_method')) {
         return 'pos'
+    }
+
+    if (guestEmail || guestPhone) {
+        return 'online'
     }
 
     return getStringField(order, 'customer_id', 'user_id') ? 'online' : 'pos'
@@ -866,6 +866,7 @@ function getOrderDataIssues(order: RawOrderRow, customer: CustomerSummary | null
     const rawFinancial = getStringField(order, 'financial_status') ? normalizeOrderPaymentStatus(getStringField(order, 'financial_status')) : null
     const rawChannel = normalizeOrderChannel(getStringField(order, 'sales_channel'))
     const rawOrderType = normalizeOrderChannel(getStringField(order, 'order_type'))
+    const rawCustomerId = getStringField(order, 'customer_id')
     const userId = getStringField(order, 'user_id')
     const guestEmail = getStringField(order, 'guest_email')
     const guestPhone = getStringField(order, 'guest_phone')
@@ -890,8 +891,8 @@ function getOrderDataIssues(order: RawOrderRow, customer: CustomerSummary | null
         issues.push('Online order has no customer contact')
     }
 
-    if (!customer?.id && !userId && Boolean(guestEmail || guestPhone)) {
-        issues.push('Guest order is not linked to a customer')
+    if (rawCustomerId && !customer?.id) {
+        issues.push('Customer link points to a missing customer record')
     }
 
     if (getOrderTotal(order) <= 0) {

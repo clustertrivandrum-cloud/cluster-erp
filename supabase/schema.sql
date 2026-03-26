@@ -271,6 +271,73 @@ begin
 end;
 $$ language plpgsql;
 
+create or replace function complete_order_payment(p_order_id uuid)
+returns text as $$
+declare
+  order_row record;
+  item_row record;
+  inventory_row record;
+begin
+  select id, payment_status, financial_status
+  into order_row
+  from public.orders
+  where id = p_order_id
+  for update;
+
+  if order_row.id is null then
+    raise exception 'Order not found.';
+  end if;
+
+  if lower(coalesce(order_row.payment_status, order_row.financial_status, '')) = 'paid' then
+    return 'already_paid';
+  end if;
+
+  for item_row in
+    select variant_id, sum(quantity)::integer as quantity
+    from public.order_items
+    where order_id = p_order_id
+      and variant_id is not null
+    group by variant_id
+  loop
+    select id, location_id, available_quantity, reserved_quantity
+    into inventory_row
+    from public.inventory_items
+    where variant_id = item_row.variant_id
+    order by updated_at asc, id asc
+    limit 1
+    for update;
+
+    if inventory_row.id is null then
+      raise exception 'Inventory not found for variant %', item_row.variant_id;
+    end if;
+
+    insert into public.inventory_movements (variant_id, location_id, quantity, movement_type, reference_id)
+    values (item_row.variant_id, inventory_row.location_id, -item_row.quantity, 'sale', p_order_id);
+
+    update public.inventory_items
+    set available_quantity = greatest(coalesce(available_quantity, 0) - item_row.quantity, 0),
+        reserved_quantity = greatest(coalesce(reserved_quantity, 0) - item_row.quantity, 0),
+        updated_at = now()
+    where id = inventory_row.id;
+  end loop;
+
+  update public.orders
+  set payment_status = 'paid',
+      financial_status = 'paid',
+      status = 'processing',
+      fulfillment_status = 'processing',
+      updated_at = now()
+  where id = p_order_id;
+
+  update public.preorders
+  set status = 'fulfilled'
+  where order_id = p_order_id
+    and coalesce(status, '') <> 'cancelled';
+
+  return 'paid';
+end;
+$$ language plpgsql;
+
 -- =========================================
 -- 4️⃣ ORDER ENGINE (POS + ONLINE)
 -- =========================================
@@ -334,6 +401,10 @@ create table payments (
   status text,
   created_at timestamptz default now()
 );
+
+create unique index payments_provider_provider_reference_uidx
+  on payments(provider, provider_reference)
+  where provider_reference is not null;
 
 create table payment_request_deliveries (
   id uuid primary key default gen_random_uuid(),

@@ -12,6 +12,10 @@ const ALLOWED_PREORDER_STATUSES = ['pending', 'payment_pending', 'fulfilled', 'c
 export type PreorderStatus = (typeof ALLOWED_PREORDER_STATUSES)[number]
 type PaymentRequestChannel = 'email' | 'sms'
 
+function getOrderPaymentState(order?: { payment_status?: string | null; financial_status?: string | null } | null) {
+    return String(order?.payment_status ?? order?.financial_status ?? '').trim().toLowerCase()
+}
+
 function getStorefrontSiteUrl() {
     const siteUrl =
         process.env.ECOMMERCE_SITE_URL ||
@@ -86,7 +90,7 @@ export async function getPreorders(status: PreorderStatus | 'all' = 'all') {
             quantity,
             status,
             created_at,
-            orders ( id, order_number, financial_status ),
+            orders ( id, order_number, payment_status, financial_status ),
             customers ( id, first_name, last_name, email, phone ),
             product_variants (
                 id,
@@ -126,7 +130,7 @@ export async function updatePreorderStatus(id: string, status: PreorderStatus) {
     const supabase = await createClient()
     const { data: currentPreorder, error: fetchError } = await supabase
         .from('preorders')
-        .select('id, status, order_id, orders ( financial_status )')
+        .select('id, status, order_id, orders ( payment_status, financial_status )')
         .eq('id', id)
         .single()
 
@@ -137,7 +141,7 @@ export async function updatePreorderStatus(id: string, status: PreorderStatus) {
     const linkedOrder = Array.isArray(currentPreorder.orders)
         ? currentPreorder.orders[0]
         : currentPreorder.orders
-    const linkedOrderPaid = linkedOrder?.financial_status === 'paid'
+    const linkedOrderPaid = getOrderPaymentState(linkedOrder) === 'paid'
 
     if (currentPreorder.order_id && status === 'pending') {
         return { error: 'Preorders linked to orders cannot be moved back to pending.' }
@@ -168,7 +172,7 @@ export async function updatePreorderStatus(id: string, status: PreorderStatus) {
         before: {
             status: currentPreorder.status || 'pending',
             order_id: currentPreorder.order_id || null,
-            order_financial_status: linkedOrder?.financial_status || null,
+            order_financial_status: linkedOrder?.payment_status || linkedOrder?.financial_status || null,
         },
         after: {
             status,
@@ -200,7 +204,7 @@ export async function createPaymentOrderFromPreorder(id: string) {
             unit_price,
             quantity,
             status,
-            orders ( financial_status ),
+            orders ( payment_status, financial_status ),
             customers (
                 id,
                 first_name,
@@ -235,7 +239,7 @@ export async function createPaymentOrderFromPreorder(id: string) {
         const linkedOrder = Array.isArray(preorder.orders)
             ? preorder.orders[0]
             : preorder.orders
-        const preorderStatus = linkedOrder?.financial_status === 'paid' ? 'fulfilled' : 'payment_pending'
+        const preorderStatus = getOrderPaymentState(linkedOrder) === 'paid' ? 'fulfilled' : 'payment_pending'
         return { success: true, orderId: preorder.order_id, alreadyExists: true, preorderStatus }
     }
 
@@ -273,8 +277,11 @@ export async function createPaymentOrderFromPreorder(id: string) {
             guest_email: customerEmail,
             guest_name: customerName,
             guest_phone: customerPhone,
+            payment_status: 'pending',
             financial_status: 'pending',
+            status: 'pending',
             fulfillment_status: 'unfulfilled',
+            total_amount: unitPrice * quantity,
             subtotal: unitPrice * quantity,
             discount_total: 0,
             tax_total: 0,
@@ -392,7 +399,7 @@ export async function getOrderPaymentRequest(orderId: string) {
 
     const { data: order, error } = await supabase
         .from('orders')
-        .select('id, order_number, guest_email, guest_phone, financial_status, payment_request_token')
+        .select('id, order_number, guest_email, guest_phone, payment_status, financial_status, payment_request_token')
         .eq('id', orderId)
         .single()
 
@@ -400,7 +407,7 @@ export async function getOrderPaymentRequest(orderId: string) {
         return { error: error?.message || 'Order not found.' }
     }
 
-    if (order.financial_status === 'paid') {
+    if (getOrderPaymentState(order) === 'paid') {
         return { error: 'This order is already paid.' }
     }
 

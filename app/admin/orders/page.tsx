@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { ArrowUpDown, CalendarRange, Download, Filter, Plus, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
-import { batchUpdateOrders, getOrders, repairOrders, type OrderRecord } from '@/lib/actions/order-actions'
+import { ArrowUpDown, CalendarRange, ChevronDown, ChevronUp, Download, Filter, Plus, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
+import { batchUpdateOrders, getOrders, type OrderRecord } from '@/lib/actions/order-actions'
 import PaginationBar from '@/components/ui/PaginationBar'
 import { getAllowedFulfillmentStatuses, getFulfillmentDisplayLabel } from '@/lib/orders/workflow'
 
@@ -90,6 +90,22 @@ function buildExportUrl(filters: OrdersFilterState) {
   return `/api/admin/exports/orders?${params.toString()}`
 }
 
+function countActiveFilters(filters: OrdersFilterState) {
+  return [
+    filters.query,
+    filters.fulfillmentStatus,
+    filters.paymentStatus,
+    filters.salesChannel !== 'all' ? filters.salesChannel : '',
+    filters.customerType !== 'all' ? filters.customerType : '',
+    filters.paymentMethod,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.minAmount,
+    filters.maxAmount,
+    filters.sortBy !== 'newest' ? filters.sortBy : '',
+  ].filter(Boolean).length
+}
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState<OrderRecord[]>([])
   const [filters, setFilters] = useState<OrdersFilterState>(DEFAULT_FILTERS)
@@ -101,8 +117,8 @@ export default function OrdersPage() {
   const [batchFulfillmentStatus, setBatchFulfillmentStatus] = useState('')
   const [batchPaymentStatus, setBatchPaymentStatus] = useState('')
   const [batchMessage, setBatchMessage] = useState<string | null>(null)
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [isBatchWorking, startBatchTransition] = useTransition()
-  const [isRepairing, startRepairTransition] = useTransition()
   const [, startTransition] = useTransition()
 
   const loadOrders = useCallback(async (nextPage: number, nextFilters: OrdersFilterState) => {
@@ -151,6 +167,12 @@ export default function OrdersPage() {
     }
   }, [orders])
 
+  const activeFilterCount = useMemo(() => countActiveFilters(filters), [filters])
+  const hasAdvancedFiltersApplied = useMemo(() => (
+    filters.customerType !== 'all'
+    || Boolean(filters.paymentMethod || filters.dateFrom || filters.dateTo || filters.minAmount || filters.maxAmount)
+  ), [filters])
+
   const fulfillmentOptions = useMemo(() => {
     if (filters.salesChannel === 'pos') {
       return getAllowedFulfillmentStatuses('pos')
@@ -190,36 +212,22 @@ export default function OrdersPage() {
     })
   }
 
-  const handleRepairSelected = () => {
-    startRepairTransition(async () => {
-      const result = await repairOrders(selectedIds)
-
-      if (result.error) {
-        setBatchMessage(result.error)
-      } else {
-        const linkedCustomers = result.linkedCustomers ? ` ${result.linkedCustomers} customer links restored.` : ''
-        setBatchMessage(`${result.updated || 0} orders normalized.${linkedCustomers}`)
-        await loadOrders(page, filters)
-      }
-    })
-  }
-
   return (
-    <div className="mx-auto max-w-7xl space-y-6 pb-12">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div className="mx-auto max-w-7xl space-y-5 pb-12">
+      <div className="flex flex-col gap-4 rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm sm:p-6 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-[0.28em] text-gray-400">Commerce Control</p>
           <div>
-            <h1 className="text-3xl font-black text-gray-900">Orders Command Center</h1>
+            <h1 className="text-2xl font-black text-gray-900 sm:text-3xl">Orders Command Center</h1>
             <p className="mt-2 max-w-3xl text-sm text-gray-500">
-              Unified oversight for POS, offline, and online orders. Filter, review, and repair order records from one clean queue without leaving the page.
+              One production queue for POS and online orders. Search, filter, and update live records without fighting the layout.
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid gap-2 sm:grid-cols-3 lg:w-auto">
           <a
             href={buildExportUrl(filters)}
-            className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+            className="inline-flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
           >
             <Download className="mr-2 h-4 w-4" />
             Export CSV
@@ -227,14 +235,14 @@ export default function OrdersPage() {
           <button
             type="button"
             onClick={() => startTransition(() => loadOrders(page, filters))}
-            className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+            className="inline-flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
           >
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </button>
           <Link
             href="/admin/orders/new"
-            className="inline-flex items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-black"
+            className="inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-black"
           >
             <Plus className="mr-2 h-4 w-4" />
             Create Order
@@ -242,56 +250,65 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Matched Orders</p>
-          <p className="mt-3 text-3xl font-black text-gray-900">{count}</p>
-          <p className="mt-1 text-sm text-gray-500">Across current filters</p>
-        </div>
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Page Revenue</p>
-          <p className="mt-3 text-3xl font-black text-gray-900">{formatCurrency(matchedSummary.totalAmount)}</p>
-          <p className="mt-1 text-sm text-gray-500">Visible rows only</p>
-        </div>
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Paid Orders</p>
-          <p className="mt-3 text-3xl font-black text-gray-900">{matchedSummary.paid}</p>
-          <p className="mt-1 text-sm text-gray-500">Current page snapshot</p>
-        </div>
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Need Attention</p>
-          <p className="mt-3 text-3xl font-black text-gray-900">{matchedSummary.attention}</p>
-          <p className="mt-1 text-sm text-gray-500">Pending, unpaid, failed, returned</p>
-        </div>
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-gray-400">Data Issues</p>
-          <p className="mt-3 text-3xl font-black text-gray-900">{matchedSummary.schemaIssues}</p>
-          <p className="mt-1 text-sm text-gray-500">Visible rows needing review</p>
-        </div>
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+        {[
+          { label: 'Matched Orders', value: count, helper: 'Across current filters' },
+          { label: 'Page Revenue', value: formatCurrency(matchedSummary.totalAmount), helper: 'Visible rows only' },
+          { label: 'Paid Orders', value: matchedSummary.paid, helper: 'Current page snapshot' },
+          { label: 'Need Attention', value: matchedSummary.attention, helper: 'Pending, unpaid, failed, returned' },
+          { label: 'Data Issues', value: matchedSummary.schemaIssues, helper: 'Visible rows needing review' },
+        ].map((card) => (
+          <div key={card.label} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400 sm:text-xs">{card.label}</p>
+            <p className="mt-3 text-2xl font-black text-gray-900 sm:text-3xl">{card.value}</p>
+            <p className="mt-1 text-sm text-gray-500">{card.helper}</p>
+          </div>
+        ))}
       </div>
 
       {matchedSummary.schemaIssues > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 shadow-sm">
-          {matchedSummary.schemaIssues} orders on this page need review because of missing contact data, customer links, or inconsistent field values. Select them and run `Repair selected` to sync the record and restore customer links where possible.
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm sm:px-5 sm:py-4">
+          {matchedSummary.schemaIssues} orders on this page still have incomplete contact or field consistency checks. Review the flagged rows before final fulfillment or payment follow-up.
         </div>
       )}
 
-      <div className="rounded-[28px] border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-gray-400" />
-            <span className="text-sm font-semibold text-gray-900">Filter & repair orders</span>
+      <div className="rounded-[28px] border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="mb-4 flex flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-start gap-2">
+            <Filter className="mt-0.5 h-4 w-4 text-gray-400" />
+            <div>
+              <span className="text-sm font-semibold text-gray-900">Order filters</span>
+              <p className="mt-1 text-sm text-gray-500">Keep the common filters visible and tuck the rest away on smaller screens.</p>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setFilters(DEFAULT_FILTERS)}
-            className="text-sm font-medium text-gray-500 transition hover:text-gray-900"
-          >
-            Reset filters
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {activeFilterCount > 0 && (
+              <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-gray-600">
+                {activeFilterCount} active
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowAdvancedFilters((current) => !current)}
+              className="inline-flex items-center rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 lg:hidden"
+            >
+              {showAdvancedFilters || hasAdvancedFiltersApplied ? <ChevronUp className="mr-2 h-4 w-4" /> : <ChevronDown className="mr-2 h-4 w-4" />}
+              Advanced filters
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFilters(DEFAULT_FILTERS)
+                setShowAdvancedFilters(false)
+              }}
+              className="text-sm font-medium text-gray-500 transition hover:text-gray-900"
+            >
+              Reset filters
+            </button>
+          </div>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[2.2fr_1fr_1fr_1fr]">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,2.2fr)_repeat(3,minmax(0,1fr))]">
           <label className="block">
             <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Search</span>
             <div className="relative">
@@ -300,6 +317,7 @@ export default function OrdersPage() {
                 type="text"
                 value={filters.query}
                 onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))}
+                placeholder="Order number, contact, tracking, notes"
                 className="w-full rounded-xl border-[1.5px] border-gray-300 bg-white py-3 pl-10 pr-4 text-sm text-gray-900 shadow-sm transition focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/15"
               />
             </div>
@@ -362,7 +380,7 @@ export default function OrdersPage() {
           </label>
         </div>
 
-        <div className="mt-4 grid gap-4 xl:grid-cols-6">
+        <div className={`${showAdvancedFilters || hasAdvancedFiltersApplied ? 'mt-4 grid' : 'hidden'} gap-4 lg:mt-4 lg:grid lg:grid-cols-6`}>
           <label className="block">
             <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Customer Type</span>
             <select
@@ -433,17 +451,17 @@ export default function OrdersPage() {
           </label>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3">
+        <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-sm text-gray-500">
-            <SlidersHorizontal className="h-4 w-4" />
-            Orders are shown through one unified admin view, with channel, payment, and fulfillment fields reconciled automatically.
+            <SlidersHorizontal className="h-4 w-4 shrink-0" />
+            Live orders are shown with channel, payment, and fulfillment values normalized into one admin view.
           </div>
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
             <ArrowUpDown className="h-4 w-4 text-gray-400" />
             <select
               value={filters.sortBy}
               onChange={(event) => setFilters((current) => ({ ...current, sortBy: event.target.value as OrdersFilterState['sortBy'] }))}
-              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-gray-900 focus:outline-none"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-gray-900 focus:outline-none sm:w-auto"
             >
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
@@ -456,27 +474,19 @@ export default function OrdersPage() {
 
       {selectedIds.length > 0 && (
         <div className="rounded-2xl border border-gray-900 bg-gray-900 p-4 text-white shadow-lg">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.25em] text-gray-400">Batch Update</p>
+              <p className="text-xs uppercase tracking-[0.25em] text-gray-400">Bulk actions</p>
               <p className="mt-1 text-lg font-bold">{selectedIds.length} orders selected</p>
               {batchMessage && <p className="mt-1 text-sm text-gray-300">{batchMessage}</p>}
             </div>
-            <div className="grid gap-3 md:grid-cols-[180px_220px_140px_220px_140px_auto]">
-              <button
-                type="button"
-                onClick={handleRepairSelected}
-                disabled={isRepairing || isBatchWorking}
-                className="rounded-xl border border-gray-700 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isRepairing ? 'Repairing...' : 'Repair selected'}
-              </button>
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,220px)_120px_minmax(0,220px)_120px_auto]">
               <select
                 value={batchFulfillmentStatus}
                 onChange={(event) => setBatchFulfillmentStatus(event.target.value)}
                 className="rounded-xl border border-gray-700 bg-gray-950 px-4 py-3 text-sm text-white outline-none"
               >
-                <option value="">Batch fulfillment status</option>
+                <option value="">Update fulfillment</option>
                 {BATCH_FULFILLMENT_OPTIONS.map((option) => (
                   <option key={option} value={option}>{getFulfillmentDisplayLabel(option as Parameters<typeof getFulfillmentDisplayLabel>[0])}</option>
                 ))}
@@ -495,7 +505,7 @@ export default function OrdersPage() {
                 onChange={(event) => setBatchPaymentStatus(event.target.value)}
                 className="rounded-xl border border-gray-700 bg-gray-950 px-4 py-3 text-sm text-white outline-none"
               >
-                <option value="">Batch payment status</option>
+                <option value="">Update payment</option>
                 {BATCH_PAYMENT_OPTIONS.map((option) => (
                   <option key={option} value={option}>{option}</option>
                 ))}
@@ -522,7 +532,7 @@ export default function OrdersPage() {
       )}
 
       <div className="overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-100 px-5 py-4">
+        <div className="border-b border-gray-100 px-4 py-4 sm:px-5">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-lg font-bold text-gray-900">Orders Ledger</h2>
@@ -535,7 +545,92 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="divide-y divide-gray-100 lg:hidden">
+          {loading ? (
+            <div className="px-4 py-16 text-center text-sm text-gray-500">Loading orders...</div>
+          ) : error ? (
+            <div className="px-4 py-16 text-center text-sm text-red-600">{error}</div>
+          ) : orders.length === 0 ? (
+            <div className="px-4 py-16 text-center text-sm text-gray-500">No orders match these filters.</div>
+          ) : (
+            orders.map((order) => {
+              const created = formatDateTime(order.created_at)
+              const isSelected = selectedIds.includes(order.id)
+
+              return (
+                <div key={order.id} className={`space-y-4 px-4 py-4 ${isSelected ? 'bg-gray-50' : 'bg-white'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link href={`/admin/orders/${order.id}`} className="text-sm font-bold text-gray-900 hover:text-black">
+                          #{order.order_number || order.id.slice(0, 8)}
+                        </Link>
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusBadge(order.status)}`}>
+                          {order.status}
+                        </span>
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusBadge(order.payment_status)}`}>
+                          {order.payment_status}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm font-semibold text-gray-900">{order.customer_label}</p>
+                      <p className="text-sm text-gray-500">{order.customer_email || order.customer_phone || 'No direct contact'}</p>
+                      <p className="mt-1 text-xs text-gray-400">{created.date} at {created.time}</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={(event) => {
+                        setSelectedIds((current) => {
+                          if (event.target.checked) {
+                            return [...current, order.id]
+                          }
+
+                          return current.filter((value) => value !== order.id)
+                        })
+                      }}
+                      className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 rounded-2xl border border-gray-100 bg-gray-50 p-3 text-sm">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">Channel</p>
+                      <p className="mt-1 font-semibold text-gray-900">{order.sales_channel.toUpperCase()}</p>
+                      <p className="text-xs text-gray-500">{order.payment_method || 'Method unknown'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400">Amount</p>
+                      <p className="mt-1 font-semibold text-gray-900">{formatCurrency(order.total_amount)}</p>
+                      <p className="text-xs text-gray-500">{order.item_count} item{order.item_count === 1 ? '' : 's'}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      {order.data_issues.length === 0 ? (
+                        <span className="inline-flex rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                          Healthy
+                        </span>
+                      ) : (
+                        <div className="space-y-1">
+                          <span className="inline-flex rounded-full border border-amber-100 bg-amber-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-amber-700">
+                            {order.data_issues.length} issue{order.data_issues.length > 1 ? 's' : ''}
+                          </span>
+                          <p className="text-xs text-gray-500">{order.data_issues[0]}</p>
+                        </div>
+                      )}
+                    </div>
+                    <Link href={`/admin/orders/${order.id}`} className="text-sm font-semibold text-gray-500 hover:text-gray-900">
+                      Open
+                    </Link>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+
+        <div className="hidden overflow-x-auto lg:block">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -669,7 +764,7 @@ export default function OrdersPage() {
                       </td>
                       <td className="px-5 py-4 text-right align-top">
                         <div className="text-sm font-bold text-gray-900">{formatCurrency(order.total_amount)}</div>
-                        {order.notes && <div className="mt-1 text-xs text-gray-400 line-clamp-2">{order.notes}</div>}
+                        {order.notes && <div className="mt-1 line-clamp-2 text-xs text-gray-400">{order.notes}</div>}
                       </td>
                       <td className="px-5 py-4 text-right align-top">
                         <Link href={`/admin/orders/${order.id}`} className="text-sm font-semibold text-gray-500 hover:text-gray-900">
