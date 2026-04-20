@@ -599,7 +599,11 @@ type SearchVariantResult = {
 export async function getCategories() {
     await requireActionPermission('manage_products')
     const supabase = await createClient()
-    const { data, error } = await supabase.from('categories').select('id, name, parent_id').order('name')
+    const { data, error } = await supabase
+        .from('categories')
+        .select('id, name, parent_id, sort_order')
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true })
     if (error) {
         console.error('Error fetching categories:', error)
         return []

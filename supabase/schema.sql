@@ -50,6 +50,7 @@ create table categories (
   description text,
   image_url text,
   parent_id uuid references categories(id),
+  sort_order integer not null default 0,
   created_at timestamptz default now()
 );
 

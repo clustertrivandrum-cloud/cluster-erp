@@ -3,8 +3,9 @@
 import Image from 'next/image'
 import { useCallback, useEffect, useState } from 'react'
 import { deleteCategory, getCategoryOptions, getCategoryPage, type CategoryRecord } from '@/lib/actions/category-actions'
-import { Plus, Pencil, Trash2, Search, Folder, FolderOpen } from 'lucide-react'
+import { ListOrdered, Plus, Pencil, Trash2, Search, Folder, FolderOpen } from 'lucide-react'
 import CategoryForm from '@/components/admin/CategoryForm'
+import CategoryOrderDialog from '@/components/admin/CategoryOrderDialog'
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
 import PaginationBar from '@/components/ui/PaginationBar'
 
@@ -12,6 +13,7 @@ type CategoryOption = {
     id: string
     name: string
     parent_id: string | null
+    sort_order: number
 }
 
 const PAGE_SIZE = 10
@@ -27,6 +29,7 @@ export default function CategoriesPage() {
     const [isFormOpen, setIsFormOpen] = useState(false)
     const [editingCategory, setEditingCategory] = useState<CategoryRecord | null>(null)
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+    const [orderDialogOpen, setOrderDialogOpen] = useState(false)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [isDeleting, setIsDeleting] = useState(false)
 
@@ -79,13 +82,22 @@ export default function CategoriesPage() {
                     <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Categories</h1>
                     <p className="text-sm text-gray-500 mt-1">Manage product categories and subcategories.</p>
                 </div>
-                <button
-                    onClick={() => openCategoryForm(null)}
-                    className="inline-flex items-center px-4 py-2 bg-gray-900 hover:bg-black text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
-                >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Category
-                </button>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                    <button
+                        onClick={() => setOrderDialogOpen(true)}
+                        className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+                    >
+                        <ListOrdered className="mr-2 h-4 w-4" />
+                        Manage order
+                    </button>
+                    <button
+                        onClick={() => openCategoryForm(null)}
+                        className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-black"
+                    >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Category
+                    </button>
+                </div>
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm mb-6 flex gap-4">
@@ -200,6 +212,15 @@ export default function CategoriesPage() {
                     categories={categoryOptions}
                     onClose={() => setIsFormOpen(false)}
                     onSuccess={() => {
+                        loadCategories(page, searchQuery)
+                    }}
+                />
+            )}
+
+            {orderDialogOpen && (
+                <CategoryOrderDialog
+                    onClose={() => setOrderDialogOpen(false)}
+                    onSaved={() => {
                         loadCategories(page, searchQuery)
                     }}
                 />

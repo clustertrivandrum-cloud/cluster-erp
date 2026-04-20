@@ -49,8 +49,9 @@ export async function getPosCategories() {
     const supabase = await createClient()
     const { data, error } = await supabase
         .from('categories')
-        .select('id, name')
-        .order('name')
+        .select('id, name, sort_order')
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true })
 
     if (error) {
         console.error('Error fetching POS categories:', error)

@@ -12,6 +12,7 @@ export type CategoryRecord = {
     description: string | null
     parent_id: string | null
     image_url: string | null
+    sort_order: number
     banner_kicker?: string | null
     banner_title?: string | null
     banner_description?: string | null
@@ -20,13 +21,45 @@ export type CategoryRecord = {
     parent_name?: string | null
 }
 
+export type CategoryOrderGroup = {
+    parentId: string | null
+    orderedIds: string[]
+}
+
+const CATEGORY_SELECT = 'id, name, slug, description, parent_id, image_url, sort_order, banner_kicker, banner_title, banner_description, banner_image_url, banner_mobile_image_url'
+
+function normalizeParentId(value: FormDataEntryValue | string | null | undefined) {
+    const normalized = typeof value === 'string' ? value.trim() : ''
+    return normalized.length > 0 ? normalized : null
+}
+
+async function getNextSortOrder(supabase: Awaited<ReturnType<typeof createClient>>, parentId: string | null) {
+    let query = supabase
+        .from('categories')
+        .select('sort_order')
+        .order('sort_order', { ascending: false })
+        .limit(1)
+
+    query = parentId ? query.eq('parent_id', parentId) : query.is('parent_id', null)
+
+    const { data, error } = await query
+
+    if (error) {
+        throw new Error(error.message)
+    }
+
+    const currentMax = Number(data?.[0]?.sort_order ?? 0)
+    return (Number.isFinite(currentMax) ? currentMax : 0) + 10
+}
+
 export async function getCategories() {
     await requireActionPermission('manage_products')
     const supabase = await createClient()
     const { data, error } = await supabase
         .from('categories')
-        .select('id, name, slug, description, parent_id, image_url, banner_kicker, banner_title, banner_description, banner_image_url, banner_mobile_image_url')
-        .order('name')
+        .select(CATEGORY_SELECT)
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true })
 
     if (error) {
         console.error('Error fetching categories:', error)
@@ -41,8 +74,9 @@ export async function getCategoryOptions() {
     const supabase = await createClient()
     const { data, error } = await supabase
         .from('categories')
-        .select('id, name, parent_id')
-        .order('name')
+        .select('id, name, parent_id, sort_order')
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true })
 
     if (error) {
         console.error('Error fetching category options:', error)
@@ -61,8 +95,9 @@ export async function getCategoryPage(params?: { query?: string; page?: number; 
 
     let dbQuery = supabase
         .from('categories')
-        .select('id, name, slug, description, parent_id, image_url, banner_kicker, banner_title, banner_description, banner_image_url, banner_mobile_image_url', { count: 'exact' })
-        .order('name')
+        .select(CATEGORY_SELECT, { count: 'exact' })
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true })
         .range(from, to)
 
     if (searchTerm) {
@@ -105,15 +140,43 @@ export async function getCategoryPage(params?: { query?: string; page?: number; 
     }
 }
 
+export async function getCategoryOrderHierarchy() {
+    await requireActionPermission('manage_products')
+    const supabase = await createClient()
+    const { data, error } = await supabase
+        .from('categories')
+        .select('id, name, parent_id, sort_order')
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true })
+
+    if (error) {
+        console.error('Error fetching category order hierarchy:', error)
+        return { data: [], error: error.message }
+    }
+
+    return { data: data ?? [], error: null }
+}
+
 export async function createCategory(formData: FormData) {
     await requireActionPermission('manage_products')
     const supabase = await createClient()
+    const parentId = normalizeParentId(formData.get('parent_id'))
+    let sortOrder = 10
+
+    try {
+        sortOrder = await getNextSortOrder(supabase, parentId)
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not assign category order.'
+        console.error('Error assigning category order:', error)
+        return { error: message }
+    }
 
     const category = {
         name: formData.get('name') as string,
         slug: formData.get('slug') as string,
         description: formData.get('description') as string,
-        parent_id: formData.get('parent_id') ? formData.get('parent_id') as string : null,
+        parent_id: parentId,
+        sort_order: sortOrder,
         image_url: formData.get('image_url') as string,
         banner_kicker: formData.get('banner_kicker') as string,
         banner_title: formData.get('banner_title') as string,
@@ -139,12 +202,35 @@ export async function createCategory(formData: FormData) {
 export async function updateCategory(id: string, formData: FormData) {
     await requireActionPermission('manage_products')
     const supabase = await createClient()
+    const parentId = normalizeParentId(formData.get('parent_id'))
+    const { data: currentCategory, error: currentError } = await supabase
+        .from('categories')
+        .select('parent_id, sort_order')
+        .eq('id', id)
+        .single()
+
+    if (currentError || !currentCategory) {
+        return { error: currentError?.message || 'Category not found.' }
+    }
+
+    let sortOrder = Number(currentCategory.sort_order ?? 0)
+
+    if ((currentCategory.parent_id ?? null) !== parentId) {
+        try {
+            sortOrder = await getNextSortOrder(supabase, parentId)
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Could not assign category order.'
+            console.error('Error assigning category order:', error)
+            return { error: message }
+        }
+    }
 
     const category = {
         name: formData.get('name') as string,
         slug: formData.get('slug') as string,
         description: formData.get('description') as string,
-        parent_id: formData.get('parent_id') ? formData.get('parent_id') as string : null,
+        parent_id: parentId,
+        sort_order: sortOrder,
         image_url: formData.get('image_url') as string,
         banner_kicker: formData.get('banner_kicker') as string,
         banner_title: formData.get('banner_title') as string,
@@ -166,6 +252,76 @@ export async function updateCategory(id: string, formData: FormData) {
     revalidatePath('/admin/categories')
     revalidatePath('/admin/products/new')
     return { success: true }
+}
+
+export async function updateCategoryOrder(groups: CategoryOrderGroup[]) {
+    await requireActionPermission('manage_products')
+    const supabase = await createClient()
+    const groupKeys = groups.map((group) => group.parentId ?? 'top-level')
+    const uniqueGroupKeys = new Set(groupKeys)
+    const allIds = groups.flatMap((group) => group.orderedIds)
+    const uniqueIds = new Set(allIds)
+
+    if (groupKeys.length !== uniqueGroupKeys.size) {
+        return { error: 'Each category parent group can only be submitted once.' }
+    }
+
+    if (allIds.length !== uniqueIds.size) {
+        return { error: 'A category can only appear once in the submitted order.' }
+    }
+
+    if (allIds.length === 0) {
+        return { success: true, updated: 0 }
+    }
+
+    const { data: categories, error } = await supabase
+        .from('categories')
+        .select('id, parent_id')
+        .in('id', allIds)
+
+    if (error) {
+        console.error('Error validating category order:', error)
+        return { error: error.message }
+    }
+
+    if ((categories ?? []).length !== allIds.length) {
+        return { error: 'One or more categories could not be found.' }
+    }
+
+    const parentById = new Map((categories ?? []).map((category) => [category.id, category.parent_id ?? null]))
+
+    for (const group of groups) {
+        const parentId = group.parentId ?? null
+
+        for (const categoryId of group.orderedIds) {
+            if ((parentById.get(categoryId) ?? null) !== parentId) {
+                return { error: 'Categories can only be reordered within their current parent group.' }
+            }
+        }
+    }
+
+    let updated = 0
+
+    for (const group of groups) {
+        for (const [index, categoryId] of group.orderedIds.entries()) {
+            const { error: updateError } = await supabase
+                .from('categories')
+                .update({ sort_order: (index + 1) * 10 })
+                .eq('id', categoryId)
+
+            if (updateError) {
+                console.error('Error updating category order:', updateError)
+                return { error: updateError.message }
+            }
+
+            updated += 1
+        }
+    }
+
+    revalidatePath('/admin/categories')
+    revalidatePath('/admin/products')
+    revalidatePath('/admin/products/new')
+    return { success: true, updated }
 }
 
 export async function deleteCategory(id: string) {
