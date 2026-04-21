@@ -45,7 +45,7 @@ export default function BasicInfoSection({ initialData }: { initialData?: { titl
                         name="title"
                         type="text"
                         placeholder="e.g. Premium Cotton T-Shirt"
-                        defaultValue={initialData?.title}
+                        defaultValue={initialData?.title ?? undefined}
                         onChange={handleTitleChange}
                     />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -68,7 +68,7 @@ export default function BasicInfoSection({ initialData }: { initialData?: { titl
                         name="description"
                         rows={4}
                         placeholder="Describe your product..."
-                        defaultValue={initialData?.description}
+                        defaultValue={initialData?.description ?? undefined}
                     />
                 </div>
             </div>
