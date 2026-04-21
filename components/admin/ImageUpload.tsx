@@ -104,15 +104,15 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ value, onChange, onRemove, on
                                     </div>
                                 )}
 
-                                {/* Drag handle overlay */}
-                                <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                {/* Drag handle overlay - only on desktop/hover */}
+                                <div className="absolute inset-0 z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none md:flex hidden">
                                     <div className="bg-black/40 backdrop-blur-sm rounded-full p-2">
                                         <GripVertical className="w-5 h-5 text-white" />
                                     </div>
                                 </div>
 
-                                {/* Remove button */}
-                                <div className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {/* Remove button - always visible on touch, hover on desktop */}
+                                <div className="absolute top-2 right-2 z-20 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                     <button
                                         type="button"
                                         onClick={() => onRemove(url)}
@@ -123,13 +123,13 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ value, onChange, onRemove, on
                                     </button>
                                 </div>
 
-                                {/* Arrow controls (mobile-friendly) */}
-                                <div className="absolute bottom-2 left-0 right-0 z-20 flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {/* Arrow controls - always visible on touch, hover on desktop */}
+                                <div className="absolute bottom-2 left-0 right-0 z-20 flex justify-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                     {index > 0 && (
                                         <button
                                             type="button"
                                             onClick={() => moveImage(index, index - 1)}
-                                            className="bg-white/90 text-gray-700 text-xs px-2 py-0.5 rounded-full hover:bg-white shadow border border-gray-200"
+                                            className="bg-white/90 text-gray-700 text-xs px-2 py-1 rounded-full hover:bg-white shadow border border-gray-200"
                                             title="Move left"
                                         >
                                             ←
@@ -139,7 +139,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ value, onChange, onRemove, on
                                         <button
                                             type="button"
                                             onClick={() => moveImage(index, index + 1)}
-                                            className="bg-white/90 text-gray-700 text-xs px-2 py-0.5 rounded-full hover:bg-white shadow border border-gray-200"
+                                            className="bg-white/90 text-gray-700 text-xs px-2 py-1 rounded-full hover:bg-white shadow border border-gray-200"
                                             title="Move right"
                                         >
                                             →
@@ -149,7 +149,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ value, onChange, onRemove, on
                                         <button
                                             type="button"
                                             onClick={() => moveImage(index, 0)}
-                                            className="bg-gray-900 text-white text-xs px-2 py-0.5 rounded-full hover:bg-gray-700 shadow"
+                                            className="bg-gray-900 text-white text-xs px-2 py-1 rounded-full hover:bg-gray-700 shadow"
                                             title="Set as cover"
                                         >
                                             ★

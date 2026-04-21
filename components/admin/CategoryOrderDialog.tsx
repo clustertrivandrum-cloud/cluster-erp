@@ -66,7 +66,19 @@ function buildGroups(categories: CategoryOrderItem[]): SortableCategoryGroup[] {
     return groups
 }
 
-function SortableCategoryRow({ item, groupId }: { item: CategoryOrderItem; groupId: string }) {
+function SortableCategoryRow({
+    item,
+    groupId,
+    onMove,
+    isFirst,
+    isLast,
+}: {
+    item: CategoryOrderItem
+    groupId: string
+    onMove: (id: string, direction: 'up' | 'down') => void
+    isFirst: boolean
+    isLast: boolean
+}) {
     const {
         attributes,
         listeners,
@@ -88,11 +100,11 @@ function SortableCategoryRow({ item, groupId }: { item: CategoryOrderItem; group
         <li
             ref={setNodeRef}
             style={style}
-            className={`flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm ${isDragging ? 'opacity-70' : ''}`}
+            className={`flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm ${isDragging ? 'z-10 opacity-70 border-gray-900 ring-2 ring-gray-900/10' : ''}`}
         >
             <button
                 type="button"
-                className="rounded-md p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900/20"
+                className="rounded-md p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900/20 touch-none"
                 aria-label={`Drag ${item.name}`}
                 {...attributes}
                 {...listeners}
@@ -100,9 +112,32 @@ function SortableCategoryRow({ item, groupId }: { item: CategoryOrderItem; group
                 <GripVertical className="h-4 w-4" />
             </button>
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">{item.name}</span>
+
+            {/* Mobile/Touch Fallback Buttons */}
+            <div className="flex items-center gap-1">
+                <button
+                    type="button"
+                    disabled={isFirst}
+                    onClick={() => onMove(item.id, 'up')}
+                    className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 bg-gray-50 text-gray-500 hover:bg-white hover:text-gray-900 disabled:opacity-30"
+                    title="Move up"
+                >
+                    ↑
+                </button>
+                <button
+                    type="button"
+                    disabled={isLast}
+                    onClick={() => onMove(item.id, 'down')}
+                    className="flex h-7 w-7 items-center justify-center rounded border border-gray-200 bg-gray-50 text-gray-500 hover:bg-white hover:text-gray-900 disabled:opacity-30"
+                    title="Move down"
+                >
+                    ↓
+                </button>
+            </div>
         </li>
     )
 }
+
 
 export default function CategoryOrderDialog({ onClose, onSaved }: CategoryOrderDialogProps) {
     const [groups, setGroups] = useState<SortableCategoryGroup[]>([])
@@ -191,6 +226,21 @@ export default function CategoryOrderDialog({ onClose, onSaved }: CategoryOrderD
         }))
     }
 
+    const handleMove = (id: string, direction: 'up' | 'down') => {
+        setGroups((currentGroups) => currentGroups.map((group) => {
+            const index = group.items.findIndex((item) => item.id === id)
+            if (index < 0) return group
+
+            const newIndex = direction === 'up' ? index - 1 : index + 1
+            if (newIndex < 0 || newIndex >= group.items.length) return group
+
+            return {
+                ...group,
+                items: arrayMove(group.items, index, newIndex),
+            }
+        }))
+    }
+
     const handleSave = () => {
         const payload: CategoryOrderGroup[] = groups.map((group) => ({
             parentId: group.parentId,
@@ -250,8 +300,15 @@ export default function CategoryOrderDialog({ onClose, onSaved }: CategoryOrderD
                                         </div>
                                         <SortableContext items={group.items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
                                             <ul className="space-y-2">
-                                                {group.items.map((item) => (
-                                                    <SortableCategoryRow key={item.id} item={item} groupId={group.id} />
+                                                {group.items.map((item, index) => (
+                                                    <SortableCategoryRow
+                                                        key={item.id}
+                                                        item={item}
+                                                        groupId={group.id}
+                                                        onMove={handleMove}
+                                                        isFirst={index === 0}
+                                                        isLast={index === group.items.length - 1}
+                                                    />
                                                 ))}
                                             </ul>
                                         </SortableContext>
