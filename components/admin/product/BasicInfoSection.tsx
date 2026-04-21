@@ -12,7 +12,7 @@ function generateSlug(value: string) {
         .replace(/^-+|-+$/g, '')
 }
 
-export default function BasicInfoSection({ initialData }: { initialData?: { title?: string; slug?: string; description?: string } }) {
+export default function BasicInfoSection({ initialData }: { initialData?: { title?: string | null; slug?: string | null; description?: string | null } & Record<string, unknown> }) {
     const [slug, setSlug] = useState(initialData?.slug || '')
     const [slugManuallyEdited, setSlugManuallyEdited] = useState(!!initialData?.slug)
 
