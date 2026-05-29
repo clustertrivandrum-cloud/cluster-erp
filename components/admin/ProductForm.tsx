@@ -515,8 +515,8 @@ export default function ProductForm({ initialProduct }: { initialProduct?: Initi
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Add New Product</h1>
-                        <p className="text-sm text-gray-500 mt-1">Create a new product with details, variants, and inventory.</p>
+                        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{initialProduct ? 'Edit Product' : 'Add New Product'}</h1>
+                        <p className="text-sm text-gray-500 mt-1">{initialProduct ? 'Update product details, variants, and inventory.' : 'Create a new product with details, variants, and inventory.'}</p>
                     </div>
                 </div>
             </div>

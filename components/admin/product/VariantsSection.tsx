@@ -112,7 +112,7 @@ export default function VariantsSection({
                 )}
 
                 {/* Generated Variants Table */}
-                {variants.length > 0 && (
+                {options.length > 0 && variants.length > 0 && (
                     <div className="mt-8">
                         <h4 className="text-sm font-medium text-gray-900 mb-4 flex items-center">
                             <ChevronRight className="w-4 h-4 text-gray-900 mr-1" />
