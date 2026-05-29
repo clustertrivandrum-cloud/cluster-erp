@@ -115,7 +115,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ value, onChange, onRemove, on
                                 <div className="absolute top-2 right-2 z-20 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                     <button
                                         type="button"
-                                        onClick={() => onRemove(url)}
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove(url); }}
                                         className="bg-white/90 text-red-600 p-1.5 rounded-full hover:bg-red-50 transition shadow-sm border border-gray-200"
                                         title="Remove image"
                                     >
@@ -128,7 +128,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ value, onChange, onRemove, on
                                     {index > 0 && (
                                         <button
                                             type="button"
-                                            onClick={() => moveImage(index, index - 1)}
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveImage(index, index - 1); }}
                                             className="bg-white/90 text-gray-700 text-xs px-2 py-1 rounded-full hover:bg-white shadow border border-gray-200"
                                             title="Move left"
                                         >
@@ -138,7 +138,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ value, onChange, onRemove, on
                                     {index < images.length - 1 && (
                                         <button
                                             type="button"
-                                            onClick={() => moveImage(index, index + 1)}
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveImage(index, index + 1); }}
                                             className="bg-white/90 text-gray-700 text-xs px-2 py-1 rounded-full hover:bg-white shadow border border-gray-200"
                                             title="Move right"
                                         >
@@ -148,7 +148,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ value, onChange, onRemove, on
                                     {index > 0 && (
                                         <button
                                             type="button"
-                                            onClick={() => moveImage(index, 0)}
+                                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); moveImage(index, 0); }}
                                             className="bg-gray-900 text-white text-xs px-2 py-1 rounded-full hover:bg-gray-700 shadow"
                                             title="Set as cover"
                                         >

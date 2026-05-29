@@ -833,7 +833,7 @@ export default function ProductForm({ initialProduct }: { initialProduct?: Initi
                                         onRemove={(url) => {
                                             const index = variants.findIndex(v => v.id === editingVariantId)
                                             if (index !== -1) {
-                                                const currentImages = variants[index].images
+                                                const currentImages = variants[index].images || []
                                                 updateVariant(index, 'images', currentImages.filter(img => img !== url))
                                             }
                                         }}
