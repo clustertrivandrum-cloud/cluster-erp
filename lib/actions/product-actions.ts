@@ -645,10 +645,41 @@ export async function deleteProduct(id: string) {
     const access = await requireActionPermission('manage_products')
     const supabase = await createClient()
 
-    // 1. Manually cascade delete wishlist items (since the DB lacks ON DELETE CASCADE for this relation)
-    await supabase.from('wishlist_items').delete().eq('product_id', id)
+    // 1. Get all variant IDs for this product
+    const { data: variants } = await supabase.from('product_variants').select('id').eq('product_id', id)
+    const variantIds = variants?.map(v => v.id) || []
 
-    // 2. Delete the product
+    // 2. Delete variant dependencies
+    if (variantIds.length > 0) {
+        await supabase.from('cart_items').delete().in('variant_id', variantIds)
+        await supabase.from('inventory_movements').delete().in('variant_id', variantIds)
+        await supabase.from('inventory_items').delete().in('variant_id', variantIds)
+        await supabase.from('variant_media').delete().in('variant_id', variantIds)
+        await supabase.from('variant_option_values').delete().in('variant_id', variantIds)
+        // Intentionally not deleting order_items so we don't destroy past orders.
+    }
+
+    // 3. Delete product dependencies
+    await supabase.from('wishlist_items').delete().eq('product_id', id)
+    await supabase.from('product_features').delete().eq('product_id', id)
+    await supabase.from('product_media').delete().eq('product_id', id)
+    await supabase.from('product_tags').delete().eq('product_id', id)
+    await supabase.from('reviews').delete().eq('product_id', id)
+
+    // 4. Delete options and their values
+    const { data: options } = await supabase.from('product_options').select('id').eq('product_id', id)
+    const optionIds = options?.map(o => o.id) || []
+    if (optionIds.length > 0) {
+        await supabase.from('product_option_values').delete().in('option_id', optionIds)
+        await supabase.from('product_options').delete().in('id', optionIds)
+    }
+
+    // 5. Finally delete variants and the product itself
+    if (variantIds.length > 0) {
+        const { error: variantError } = await supabase.from('product_variants').delete().in('id', variantIds)
+        if (variantError) return { success: false, error: 'Cannot delete product: It is likely linked to an existing order.' }
+    }
+    
     const { error } = await supabase.from('products').delete().eq('id', id)
 
     if (error) return { success: false, error: error.message }
