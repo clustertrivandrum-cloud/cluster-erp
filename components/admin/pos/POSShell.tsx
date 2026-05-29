@@ -321,6 +321,7 @@ export default function POSShell({ initialProducts, categories, initialCustomers
             setDiscountValue(0)
             setSelectedCustomer(null)
             setIsMobileCartOpen(false)
+            setIsProcessing(false)
         } else {
             alert(res.error || 'Failed to complete checkout')
             setIsProcessing(false)
