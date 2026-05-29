@@ -186,7 +186,7 @@ doc.text(settings.store_name, fromTX, INNER_Y + 4, { lineBreak: false })
 doc.font('Helvetica').fontSize(8).fillColor(C_MUTED)
 doc.text(settings.store_email, fromTX, INNER_Y + 17, { lineBreak: false })
 
-let fy2 = INNER_Y + 22
+let fy2 = INNER_Y + 36
 fy2 = plainTextRow(settings.store_address, LEFT_CARD + 12, fy2, HALF_W - 24)
 let phoneStr = settings.store_phone || ''
 if (settings.gstin) {

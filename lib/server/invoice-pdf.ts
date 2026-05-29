@@ -219,7 +219,7 @@ export async function renderInvoicePdf({
   doc.font('Helvetica-Bold').fontSize(10.5).fillColor(C_TEXT)
   doc.text(storeName, fromTX, INNER_Y + 5, { lineBreak: false })
 
-  let fy = INNER_Y + 22
+  let fy = INNER_Y + 36
   fy = bodyText(storeAddr, LEFT_X + 14, fy, HALF_W - 28) + 8
 
   if (storePhone) {
