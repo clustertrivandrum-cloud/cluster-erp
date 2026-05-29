@@ -257,22 +257,22 @@ const generateCombinations = (
 }
 
 const regenerateVariants = (nextOptions: Option[], currentVariants: Variant[]): Variant[] => {
-    if (nextOptions.length === 0) {
+    const validOptions = nextOptions.filter((option) => option.name.trim() && option.values.length > 0)
+
+    if (validOptions.length === 0) {
         return []
     }
 
-    if (nextOptions.some((option) => !option.name.trim() || option.values.length === 0)) {
-        return currentVariants
-    }
-
-    const combos = generateCombinations(nextOptions)
-    const optionOrder = nextOptions.map((option) => option.name)
+    const combos = generateCombinations(validOptions)
+    const optionOrder = validOptions.map((option) => option.name)
 
     return combos.map((combo) => {
         const title = Object.values(combo).join(' / ')
         const optionSignature = buildVariantOptionSignature(combo, optionOrder)
         const valueSignature = buildVariantValueSignature(Object.values(combo))
-        const existing = currentVariants.find((variant) => {
+        
+        let isExactMatch = true
+        let existing = currentVariants.find((variant) => {
             const existingSignature = variant.option_signature || buildVariantOptionSignature(variant.options, optionOrder)
             if (existingSignature === optionSignature) {
                 return true
@@ -286,9 +286,19 @@ const regenerateVariants = (nextOptions: Option[], currentVariants: Variant[]): 
             return variant.title.trim().toLowerCase() === title.trim().toLowerCase()
         })
 
+        if (!existing) {
+            isExactMatch = false
+            existing = currentVariants.find((variant) => {
+                const variantKeys = Object.keys(variant.options)
+                if (variantKeys.length === 0) return false
+                return variantKeys.every((k) => combo[k] === variant.options[k])
+            })
+        }
+
         if (existing) {
             return {
                 ...existing,
+                id: isExactMatch ? existing.id : crypto.randomUUID(),
                 title,
                 option_signature: optionSignature,
                 options: combo,
@@ -385,23 +395,30 @@ export default function ProductForm({ initialProduct }: { initialProduct?: Initi
     }
 
     const updateOptionName = (index: number, name: string) => {
-        const newOptions = [...options]
-        newOptions[index].name = name
+        const newOptions = options.map((opt, i) => i === index ? { ...opt, name } : opt)
         syncOptionsAndVariants(newOptions)
     }
 
     const addOptionValue = (index: number, value: string) => {
         if (!value.trim()) return
-        const newOptions = [...options]
-        if (!newOptions[index].values.includes(value)) {
-            newOptions[index].values.push(value)
-            syncOptionsAndVariants(newOptions)
-        }
+        const newOptions = options.map((opt, i) => {
+            if (i === index && !opt.values.includes(value)) {
+                return { ...opt, values: [...opt.values, value] }
+            }
+            return opt
+        })
+        syncOptionsAndVariants(newOptions)
     }
 
     const removeOptionValue = (optionIndex: number, valueIndex: number) => {
-        const newOptions = [...options]
-        newOptions[optionIndex].values.splice(valueIndex, 1)
+        const newOptions = options.map((opt, i) => {
+            if (i === optionIndex) {
+                const newValues = [...opt.values]
+                newValues.splice(valueIndex, 1)
+                return { ...opt, values: newValues }
+            }
+            return opt
+        })
         syncOptionsAndVariants(newOptions)
     }
 
