@@ -31,7 +31,9 @@ export default function POSCatalog({
 
     const getVariantStock = (variant: PosProduct['product_variants'][number]) => {
         return (variant.inventory_items ?? []).reduce((sum, inventoryItem) => {
-            return sum + Number(inventoryItem.available_quantity ?? 0)
+            const available = Number(inventoryItem.available_quantity ?? 0)
+            const reserved = Number(inventoryItem.reserved_quantity ?? 0)
+            return sum + Math.max(0, available - reserved)
         }, 0)
     }
 
@@ -116,8 +118,14 @@ export default function POSCatalog({
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4 pb-32 lg:pb-4">
-                        {products.map(product => {
-                            const variant = getPreferredVariant(product)
+                        {products.filter(p => p.product_variants.some(v => getVariantStock(v) > 0)).length === 0 ? (
+                            <div className="col-span-full h-full flex flex-col items-center justify-center text-center p-8">
+                                <h3 className="text-lg font-bold text-gray-900 mb-1">No products in stock</h3>
+                                <p className="text-gray-500">All matching products are out of stock</p>
+                            </div>
+                        ) : (
+                            products.filter(p => p.product_variants.some(v => getVariantStock(v) > 0)).map(product => {
+                                const variant = getPreferredVariant(product)
 
                             const price = Number(variant?.price ?? 0)
                             const compareAt = Number(variant?.compare_at_price ?? 0)
@@ -206,7 +214,8 @@ export default function POSCatalog({
                                     )}
                                 </button>
                             )
-                        })}
+                        })
+                        )}
                     </div>
                 )}
             </div>
