@@ -915,23 +915,24 @@ export async function searchVariants(query: string) {
 
             seen.add(v.id)
             const variantLabel = v.title && v.title !== 'Default Variant' ? ` - ${v.title}` : ''
+            const variantImages = v.variant_media
+                ?.slice()
+                .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
+                .map((media) => media.media_url)
+                .filter((value): value is string => Boolean(value)) || []
+            const productImages = p.product_media
+                ?.slice()
+                .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
+                .map((m) => m.media_url)
+                .filter((value): value is string => Boolean(value)) || []
+
             results.push({
                 id: v.id,
                 title: `${p.title}${variantLabel}${v.sku ? ` (${v.sku})` : ''}`,
                 sku: v.sku,
                 price: v.price || 0,
                 cost_price: v.cost_price || 0,
-                product_images: v.variant_media
-                    ?.slice()
-                    .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
-                    .map((media) => media.media_url)
-                    .filter((value): value is string => Boolean(value))
-                    || p.product_media
-                        ?.slice()
-                        .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
-                        .map((m) => m.media_url)
-                        .filter((value): value is string => Boolean(value))
-                    || [],
+                product_images: variantImages.length > 0 ? variantImages : productImages,
                 is_active: v.is_active !== false,
                 product_status: p.status || null,
                 available_quantity: (v.inventory_items || []).reduce((sum, item) => sum + Number(item.available_quantity || 0), 0),
@@ -946,23 +947,24 @@ export async function searchVariants(query: string) {
 
         seen.add(variant.id)
         const variantLabel = variant.title && variant.title !== 'Default Variant' ? ` - ${variant.title}` : ''
-        results.push({
-            id: variant.id,
-            title: `${variant.products?.title || 'Variant'}${variantLabel}${variant.sku ? ` (${variant.sku})` : ''}`,
-            sku: variant.sku,
-            price: variant.price || 0,
-            cost_price: variant.cost_price || 0,
-            product_images: variant.variant_media
+            const variantImages = variant.variant_media
                 ?.slice()
                 .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
                 .map((media) => media.media_url)
-                .filter((value): value is string => Boolean(value))
-                || variant.products?.product_media
-                    ?.slice()
-                    .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
-                    .map((media) => media.media_url)
-                    .filter((value): value is string => Boolean(value))
-                || [],
+                .filter((value): value is string => Boolean(value)) || []
+            const productImages = variant.products?.product_media
+                ?.slice()
+                .sort((left, right) => Number(left.position ?? 0) - Number(right.position ?? 0))
+                .map((media) => media.media_url)
+                .filter((value): value is string => Boolean(value)) || []
+
+            results.push({
+                id: variant.id,
+                title: `${variant.products?.title || 'Variant'}${variantLabel}${variant.sku ? ` (${variant.sku})` : ''}`,
+                sku: variant.sku,
+                price: variant.price || 0,
+                cost_price: variant.cost_price || 0,
+                product_images: variantImages.length > 0 ? variantImages : productImages,
             is_active: variant.is_active !== false,
             product_status: variant.products?.status || null,
             available_quantity: (variant.inventory_items || []).reduce((sum, item) => sum + Number(item.available_quantity || 0), 0),
