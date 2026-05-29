@@ -287,7 +287,10 @@ export default function POSShell({ initialProducts, categories, initialCustomers
             if (openInvoice) {
                 try {
                     const dlRes = await fetch(`/admin/orders/${res.orderId}/invoice/download`)
-                    if (!dlRes.ok) throw new Error('Failed to download invoice')
+                    if (!dlRes.ok) {
+                        const errText = await dlRes.text().catch(() => 'No text')
+                        throw new Error(`HTTP ${dlRes.status}: ${errText}`)
+                    }
                     const blob = await dlRes.blob()
                     const url = window.URL.createObjectURL(blob)
                     const link = document.createElement('a')
@@ -305,7 +308,7 @@ export default function POSShell({ initialProducts, categories, initialCustomers
                     window.URL.revokeObjectURL(url)
                 } catch (e) {
                     console.error('Download failed', e)
-                    alert('Failed to download the PDF invoice.')
+                    alert('Failed to download the PDF invoice: ' + (e instanceof Error ? e.message : 'Unknown error'))
                 }
             }
             setCart([])

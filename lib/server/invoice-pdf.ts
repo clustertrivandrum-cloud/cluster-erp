@@ -139,21 +139,34 @@ export async function renderInvoicePdf({
     doc.rect(0, 0, pageWidth, 12).fill(template.accentColor)
     doc.restore()
 
-    doc.fillColor('#6b7280').font('Helvetica-Bold').fontSize(9)
-    doc.text(template.headerLabel.toUpperCase(), left, 28)
+    let headerTextX = left
+    try {
+      const fs = require('fs')
+      const path = require('path')
+      const logoPath = path.join(process.cwd(), 'public', 'logo.png')
+      if (fs.existsSync(logoPath)) {
+        doc.image(logoPath, left, 28, { width: 44, height: 44 })
+        headerTextX = left + 56
+      }
+    } catch (e) {
+      // Ignore if logo loading fails
+    }
 
-    doc.fillColor('#111827').font('Helvetica-Bold').fontSize(24)
-    doc.text(settings?.store_name || 'Cluster ERP', left, 44, { width: contentWidth * 0.58 })
+    doc.fillColor('#6b7280').font('Helvetica-Bold').fontSize(9)
+    doc.text(template.headerLabel.toUpperCase(), headerTextX, 28)
+
+    doc.fillColor(template.accentColor).font('Helvetica-Bold').fontSize(24)
+    doc.text(settings?.store_name || 'Cluster ERP', headerTextX, 44, { width: contentWidth * 0.58 })
 
     doc.font('Helvetica').fontSize(10).fillColor('#4b5563')
     let infoY = 74
     if (settings?.store_address) {
-      infoY = wrapText(doc, settings.store_address, left, infoY, contentWidth * 0.58, { lineGap: 2 })
+      infoY = wrapText(doc, settings.store_address, headerTextX, infoY, contentWidth * 0.58, { lineGap: 2 })
       infoY += 4
     }
     const storeMeta = [settings?.store_phone ? `Phone: ${settings.store_phone}` : '', settings?.store_email ? `Email: ${settings.store_email}` : '', settings?.gstin ? `GSTIN: ${settings.gstin}` : ''].filter(Boolean)
     if (storeMeta.length > 0) {
-      wrapText(doc, storeMeta.join('   '), left, infoY, contentWidth * 0.58, { lineGap: 2 })
+      wrapText(doc, storeMeta.join('   '), headerTextX, infoY, contentWidth * 0.58, { lineGap: 2 })
     }
 
     const metaX = left + contentWidth * 0.63

@@ -17,8 +17,8 @@ export type InvoiceTemplateSettings = {
 
 export const defaultInvoiceTemplate: InvoiceTemplateSettings = {
     layout: 'modern',
-    accentColor: '#111827',
-    surfaceColor: '#f5f1ea',
+    accentColor: '#2f5a37',
+    surfaceColor: '#f1f5f3',
     headerLabel: 'Order Invoice',
     heroTitle: 'Thanks for shopping with us',
     heroMessage: 'Welcome to Cluster Fascination. Discover our trending products and enjoy every purchase.',
