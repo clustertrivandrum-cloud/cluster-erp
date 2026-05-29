@@ -259,12 +259,20 @@ const generateCombinations = (
 const regenerateVariants = (nextOptions: Option[], currentVariants: Variant[]): Variant[] => {
     const validOptions = nextOptions.filter((option) => option.name.trim() && option.values.length > 0)
 
-    if (validOptions.length === 0) {
+    const uniqueOptionNames = new Set<string>()
+    const deduplicatedOptions = validOptions.filter(opt => {
+        const lowerName = opt.name.trim().toLowerCase()
+        if (uniqueOptionNames.has(lowerName)) return false
+        uniqueOptionNames.add(lowerName)
+        return true
+    })
+
+    if (deduplicatedOptions.length === 0) {
         return []
     }
 
-    const combos = generateCombinations(validOptions)
-    const optionOrder = validOptions.map((option) => option.name)
+    const combos = generateCombinations(deduplicatedOptions)
+    const optionOrder = deduplicatedOptions.map((option) => option.name)
 
     return combos.map((combo) => {
         const title = Object.values(combo).join(' / ')
