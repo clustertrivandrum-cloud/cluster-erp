@@ -158,8 +158,8 @@ export async function renderInvoicePdf({
   // RENDER
   // ─────────────────────────────────────────────────────────────────────
 
-  // Page background
-  doc.rect(0, 0, PW, PH).fill(C_BG)
+  // Page background (white for printing)
+  doc.rect(0, 0, PW, PH).fill(C_WHITE)
 
   let Y = CARD_Y + 22
 
@@ -277,7 +277,7 @@ export async function renderInvoicePdf({
     // Page overflow guard
     if (Y + rowH > PH - PAD - 180) {
       doc.addPage()
-      doc.rect(0, 0, PW, PH).fill(C_BG)
+      doc.rect(0, 0, PW, PH).fill(C_WHITE)
       Y = PAD + 26
     }
 
@@ -380,7 +380,7 @@ export async function renderInvoicePdf({
 
   // ── Main card drawn AFTER content so height is dynamic ────────────────
   const CARD_H = FINAL_Y - CARD_Y + PAD / 2
-  doc.roundedRect(CARD_X, CARD_Y, CARD_W, CARD_H, 12).fill(C_WHITE)
+  // Draw only the border, DO NOT fill white, otherwise it covers the content
   doc.strokeColor(C_BORDER).lineWidth(0.5).roundedRect(CARD_X, CARD_Y, CARD_W, CARD_H, 12).stroke()
 
   // Re-render all content on top of the card
