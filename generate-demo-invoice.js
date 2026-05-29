@@ -148,7 +148,26 @@ Y += 18
 const HALF_W    = (CW - 12) / 2
 const LEFT_CARD = CX
 const RIGHT_CARD = CX + HALF_W + 12
-const FROM_TO_H = 130
+// Accurate height calculation
+doc.font('Helvetica').fontSize(9)
+const textWidth = HALF_W - 24
+
+let fromH = 68
+if (settings.store_address) fromH += 10 + doc.heightOfString(settings.store_address, { width: textWidth, lineGap: 1 }) + 4
+if (settings.store_phone)   fromH += 10 + doc.heightOfString(`${settings.store_phone}${settings.gstin ? `   GSTIN: ${settings.gstin}` : ''}`, { width: textWidth, lineGap: 1 }) + 4
+
+let toH = 68
+if (order.customer_label) toH += 20
+if (order.customer_email) {
+  doc.fontSize(8.5)
+  toH += doc.heightOfString(order.customer_email, { width: textWidth }) + 4
+  doc.fontSize(9)
+}
+const toPhone = order.customer_phone
+if (toPhone) toH += 10 + doc.heightOfString(toPhone, { width: textWidth, lineGap: 1 }) + 4
+if (order.payment_method) toH += 10 + doc.heightOfString(order.payment_method, { width: textWidth, lineGap: 1 }) + 4
+
+const FROM_TO_H = Math.max(120, fromH, toH)
 
 // FROM card (store info)
 card(LEFT_CARD, Y, HALF_W, FROM_TO_H, C_SURFACE)

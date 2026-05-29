@@ -187,12 +187,28 @@ export async function renderInvoicePdf({
   const LEFT_X  = CX
   const RIGHT_X = CX + HALF_W + 12
 
-  // Estimate heights
-  const fromLines = [storeAddr, storePhone && `Ph: ${storePhone}`, storeEmail && `Email: ${storeEmail}`].filter(Boolean)
-  const toLines   = [customerName, order.customer_email, order.customer_phone && `Ph: ${order.customer_phone}`,
-                     order.payment_method && `Payment: ${order.payment_method}`,
-                     paymentRef && `Ref: ${paymentRef}`].filter(Boolean)
-  const cardH = Math.max(120, 68 + Math.max(fromLines.length, toLines.length) * 16)
+  // Accurate height calculation
+  doc.font('Helvetica').fontSize(9)
+  const textWidth = HALF_W - 28
+  
+  let fromH = 68 // base padding and header
+  if (storeAddr)  fromH += 10 + doc.heightOfString(storeAddr, { width: textWidth, lineGap: 1 }) + 4
+  if (storePhone) fromH += 10 + doc.heightOfString(storePhone, { width: textWidth, lineGap: 1 }) + 4
+  if (storeEmail) fromH += 10 + doc.heightOfString(storeEmail, { width: textWidth, lineGap: 1 }) + 4
+
+  let toH = 68
+  if (customerName) toH += 20
+  if (order.customer_email) {
+    doc.fontSize(8.5)
+    toH += doc.heightOfString(order.customer_email, { width: textWidth }) + 4
+    doc.fontSize(9)
+  }
+  const toPhone = order.customer_phone || order.guest_phone || ''
+  if (toPhone) toH += 10 + doc.heightOfString(toPhone, { width: textWidth, lineGap: 1 }) + 4
+  if (order.payment_method) toH += 10 + doc.heightOfString(order.payment_method, { width: textWidth, lineGap: 1 }) + 4
+  if (paymentRef) toH += 10 + doc.heightOfString(paymentRef, { width: textWidth, lineGap: 1 }) + 4
+
+  const cardH = Math.max(120, fromH, toH)
 
   // FROM card
   roundedCard(LEFT_X, Y, HALF_W, cardH, C_SURFACE)
