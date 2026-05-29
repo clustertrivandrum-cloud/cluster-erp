@@ -1,7 +1,7 @@
 'use client'
 
-import { Search, ShoppingCart, Package } from 'lucide-react'
-import { useRef } from 'react'
+import { Search, ShoppingCart, Package, X } from 'lucide-react'
+import { useRef, useState } from 'react'
 import Image from 'next/image'
 import type { PosCategory, PosProduct } from '@/lib/pos-types'
 
@@ -10,7 +10,7 @@ interface POSCatalogProps {
     isLoading?: boolean
     search: string
     setSearch: (s: string) => void
-    addToCart: (product: PosProduct) => void
+    addToCart: (product: PosProduct, variant: PosProduct['product_variants'][0]) => void
     categories: PosCategory[]
     selectedCategoryId: string
     setSelectedCategoryId: (categoryId: string) => void
@@ -27,6 +27,7 @@ export default function POSCatalog({
     setSelectedCategoryId
 }: POSCatalogProps) {
     const categoryScrollRef = useRef<HTMLDivElement>(null)
+    const [selectedProductForVariants, setSelectedProductForVariants] = useState<PosProduct | null>(null)
 
     const getVariantStock = (variant: PosProduct['product_variants'][number]) => {
         return (variant.inventory_items ?? []).reduce((sum, inventoryItem) => {
@@ -120,8 +121,8 @@ export default function POSCatalog({
 
                             const price = Number(variant?.price ?? 0)
                             const compareAt = Number(variant?.compare_at_price ?? 0)
-                            const stock = variant ? getVariantStock(variant) : 0
-                            const hasStock = stock > 0
+                            const preferredStock = variant ? getVariantStock(variant) : 0
+                            const hasStock = product.product_variants.some(v => getVariantStock(v) > 0)
                             const image = variant?.variant_media?.find((media) => media.media_url)?.media_url
                                 ?? product.product_media?.[0]?.media_url
                             const skuLabel = variant?.sku ? `SKU ${variant.sku}` : 'Default variant'
@@ -129,7 +130,15 @@ export default function POSCatalog({
                             return (
                                 <button
                                     key={product.id}
-                                    onClick={() => addToCart(product)}
+                                    onClick={() => {
+                                        const sellableVariants = product.product_variants.filter(isVariantSellable)
+                                        if (sellableVariants.length > 1) {
+                                            setSelectedProductForVariants(product)
+                                        } else {
+                                            const targetVariant = getPreferredVariant(product)
+                                            if (targetVariant) addToCart(product, targetVariant)
+                                        }
+                                    }}
                                     disabled={!hasStock}
                                     className="group relative bg-white rounded-3xl p-3 border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-left flex flex-col h-full active:scale-95 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-sm"
                                 >
@@ -157,9 +166,9 @@ export default function POSCatalog({
                                                 </span>
                                             </div>
                                         ) : (
-                                            stock <= 5 && (
+                                            preferredStock <= 5 && (
                                                 <div className="absolute top-2 right-2 bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200 shadow-sm">
-                                                    Only {stock} left
+                                                    Only {preferredStock} left
                                                 </div>
                                             )
                                         )}
@@ -170,7 +179,7 @@ export default function POSCatalog({
                                         <h3 className="text-sm font-bold text-gray-900 line-clamp-2 leading-tight mb-2 group-hover:text-gray-700 transition-colors">
                                             {product.title}
                                         </h3>
-                                        <p className="text-[11px] font-medium text-gray-500 mb-3">{skuLabel} · Stock: {Math.max(stock, 0)}</p>
+                                        <p className="text-[11px] font-medium text-gray-500 mb-3">{skuLabel} · Stock: {Math.max(preferredStock, 0)}</p>
 
                                         <div className="mt-auto flex items-end justify-between">
                                             <div>
@@ -201,6 +210,52 @@ export default function POSCatalog({
                     </div>
                 )}
             </div>
+
+            {/* Variant Selection Modal */}
+            {selectedProductForVariants && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
+                    <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden scale-100 animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
+                        <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                            <div>
+                                <h2 className="text-lg font-bold text-gray-900">Select Variant</h2>
+                                <p className="text-xs text-gray-500">{selectedProductForVariants.title}</p>
+                            </div>
+                            <button onClick={() => setSelectedProductForVariants(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto space-y-2 bg-gray-50 flex-1">
+                            {selectedProductForVariants.product_variants.filter(isVariantSellable).map(variant => {
+                                const stock = getVariantStock(variant)
+                                const hasStock = stock > 0
+                                const title = variant.title && variant.title !== 'Default Variant' ? variant.title : 'Standard'
+                                return (
+                                    <button
+                                        key={variant.id}
+                                        disabled={!hasStock}
+                                        onClick={() => {
+                                            addToCart(selectedProductForVariants, variant)
+                                            setSelectedProductForVariants(null)
+                                        }}
+                                        className="w-full bg-white p-4 rounded-2xl border border-gray-200 shadow-sm hover:border-gray-900 hover:shadow-md transition-all text-left flex items-center justify-between group disabled:opacity-50 disabled:hover:border-gray-200 disabled:hover:shadow-sm"
+                                    >
+                                        <div>
+                                            <h4 className="font-bold text-gray-900 group-hover:text-black">{title}</h4>
+                                            <p className="text-xs text-gray-500 font-mono mt-1">{variant.sku ? `SKU: ${variant.sku}` : ''}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-black text-gray-900 text-lg">₹{Number(variant.price ?? 0)}</p>
+                                            <p className={`text-xs font-bold mt-1 ${hasStock ? 'text-green-600' : 'text-red-500'}`}>
+                                                {hasStock ? `${stock} in stock` : 'Out of stock'}
+                                            </p>
+                                        </div>
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

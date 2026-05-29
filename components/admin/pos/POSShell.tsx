@@ -140,8 +140,7 @@ export default function POSShell({ initialProducts, categories, initialCustomers
 
 
     // Cart Logic
-    const addToCart = (product: PosProduct) => {
-        const targetVariant = getPreferredVariant(product)
+    const addToCart = (product: PosProduct, targetVariant: PosProductVariant) => {
         if (!targetVariant) {
             alert('No variants available')
             return
