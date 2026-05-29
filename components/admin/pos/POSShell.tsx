@@ -28,7 +28,9 @@ function mergeProducts(existing: PosProduct[], incoming: PosProduct[]) {
 
 function getVariantStock(variant: PosProductVariant) {
     return (variant.inventory_items ?? []).reduce((sum, inventoryItem) => {
-        return sum + Number(inventoryItem.available_quantity ?? 0)
+        const available = Number(inventoryItem.available_quantity ?? 0)
+        const reserved = Number(inventoryItem.reserved_quantity ?? 0)
+        return sum + Math.max(0, available - reserved)
     }, 0)
 }
 
