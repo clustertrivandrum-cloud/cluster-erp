@@ -644,6 +644,11 @@ export async function getProducts(searchQuery: string = '', page: number = 1, li
 export async function deleteProduct(id: string) {
     const access = await requireActionPermission('manage_products')
     const supabase = await createClient()
+
+    // 1. Manually cascade delete wishlist items (since the DB lacks ON DELETE CASCADE for this relation)
+    await supabase.from('wishlist_items').delete().eq('product_id', id)
+
+    // 2. Delete the product
     const { error } = await supabase.from('products').delete().eq('id', id)
 
     if (error) return { success: false, error: error.message }
