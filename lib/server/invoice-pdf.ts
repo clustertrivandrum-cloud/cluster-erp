@@ -151,7 +151,7 @@ export async function renderInvoicePdf({
   // [Logo + Store name]    [Invoice No.]  [Issued]  [Status]
   const LOGO_SZ = 32
   if (logoPath) {
-    try { doc.image(logoPath, CX, Y, { width: LOGO_SZ, height: LOGO_SZ }) } catch { /* ignore */ }
+    try { doc.image(logoPath, CX, Y, { width: LOGO_SZ }) } catch { /* ignore */ }
   }
   const nameX = logoPath ? CX + LOGO_SZ + 10 : CX
   doc.font('Helvetica-Bold').fontSize(14).fillColor(C_TEXT)
@@ -194,7 +194,7 @@ export async function renderInvoicePdf({
 
   let fy = Y + 38
   if (logoPath) {
-    try { doc.image(logoPath, LEFT_X + 14, fy, { width: 28, height: 28 }) } catch { /* ignore */ }
+    try { doc.image(logoPath, LEFT_X + 14, fy, { width: 28 }) } catch { /* ignore */ }
   }
   const fromTextX = logoPath ? LEFT_X + 50 : LEFT_X + 14
   doc.font('Helvetica-Bold').fontSize(11).fillColor(C_TEXT)
