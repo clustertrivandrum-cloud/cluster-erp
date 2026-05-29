@@ -30,7 +30,8 @@ type AppSettings = {
 function fmt(amount: number | string | null | undefined) {
   const value = typeof amount === 'number' ? amount : Number(amount ?? 0)
   const safe  = Number.isFinite(value) ? value : 0
-  return `Rs. ${new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(safe)}`
+  // No space between Rs. and number prevents line-wrap in narrow PDF columns
+  return `Rs.${new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(safe)}`
 }
 
 function formatAddress(address?: Record<string, unknown> | null): string[] {
@@ -231,22 +232,23 @@ export async function renderInvoicePdf({
   Y += fromToH + 22
 
   // ── ITEMS TABLE ────────────────────────────────────────────────────────────
-  // Columns: Description | QTY | Price | Amount
-  const T_DESC_X  = CX
-  const T_DESC_W  = CW - 190
-  const T_QTY_X   = CX + T_DESC_W + 10
-  const T_QTY_W   = 40
-  const T_PRICE_X = T_QTY_X + T_QTY_W + 10
-  const T_PRICE_W = 80
-  const T_AMT_X   = T_PRICE_X + T_PRICE_W + 10
-  const T_AMT_W   = CR - T_AMT_X
+  // ─── Column positions allocated from right to prevent overflow ────────
+  const COL_GAP     = 8
+  const COL_AMT_W   = 88   // wide enough for "Rs.12,999.00"
+  const COL_PRICE_W = 88
+  const COL_QTY_W   = 34
+  const COL_AMT_X   = CR  - COL_AMT_W
+  const COL_PRICE_X = COL_AMT_X   - COL_GAP - COL_PRICE_W
+  const COL_QTY_X   = COL_PRICE_X - COL_GAP - COL_QTY_W
+  const COL_ITEM_X  = CX
+  const COL_ITEM_W  = COL_QTY_X - COL_GAP - COL_ITEM_X
 
   // Table header
   doc.font('Helvetica').fontSize(8.5).fillColor(C_MUTED)
-  doc.text('Description', T_DESC_X,  Y, { lineBreak: false })
-  doc.text('QTY',         T_QTY_X,   Y, { width: T_QTY_W,   align: 'center', lineBreak: false })
-  doc.text('Price',       T_PRICE_X, Y, { width: T_PRICE_W, align: 'right',  lineBreak: false })
-  doc.text('Amount',      T_AMT_X,   Y, { width: T_AMT_W,   align: 'right',  lineBreak: false })
+  doc.text('Description', COL_ITEM_X,  Y, { width: COL_ITEM_W, lineBreak: false })
+  doc.text('QTY',         COL_QTY_X,   Y, { width: COL_QTY_W,   align: 'center', lineBreak: false })
+  doc.text('Price',       COL_PRICE_X, Y, { width: COL_PRICE_W, align: 'right',  lineBreak: false })
+  doc.text('Amount',      COL_AMT_X,   Y, { width: COL_AMT_W,   align: 'right',  lineBreak: false })
 
   Y += 16
   doc.moveTo(CARD_X, Y).lineTo(CARD_X + CARD_W, Y).strokeColor(C_BORDER).lineWidth(0.4).stroke()
@@ -262,14 +264,13 @@ export async function renderInvoicePdf({
     const amount = fmt(item.total_price)
     const qty    = String(item.quantity)
 
-    // Estimate row height
-    const charsPerLine = Math.floor(T_DESC_W / 6.5)
+    // Estimate row height based on description column width
+    const charsPerLine = Math.floor(COL_ITEM_W / 6.5)
     const lines = Math.max(1, Math.ceil(title.length / charsPerLine))
-    const rowH = Math.max(32, lines * 14 + 14)
+    const rowH = Math.max(34, lines * 13 + 16)
 
-    // Check page overflow — simple guard (single-page for most invoices)
+    // Page overflow guard
     if (Y + rowH > PH - PAD - 160) {
-      // Start next page — redraw background & card is complex, keep simple for now
       doc.addPage()
       doc.rect(0, 0, PW, PH).fill(C_BG)
       doc.roundedRect(CARD_X, CARD_Y, CARD_W, CARD_H, 12).fill(C_WHITE)
@@ -278,29 +279,26 @@ export async function renderInvoicePdf({
     }
 
     // Coloured dot
-    const dotColor = DOT_COLORS[idx % DOT_COLORS.length]
-    doc.circle(T_DESC_X + 5, Y + 10, 4).fill(dotColor)
+    doc.circle(COL_ITEM_X + 5, Y + 10, 4).fill(DOT_COLORS[idx % DOT_COLORS.length])
 
-    // Item title
-    doc.font('Helvetica-Bold').fontSize(10).fillColor(C_TEXT)
-    doc.text(title, T_DESC_X + 18, Y + 4, { width: T_DESC_W - 18, lineGap: 1 })
+    // Item title (may wrap within desc column only)
+    doc.font('Helvetica-Bold').fontSize(9.5).fillColor(C_TEXT)
+    doc.text(title, COL_ITEM_X + 16, Y + 4, { width: COL_ITEM_W - 16, lineGap: 1 })
 
     // SKU sub-label
     if (sku) {
       doc.font('Helvetica').fontSize(8).fillColor(C_MUTED)
-      doc.text(sku, T_DESC_X + 18, Y + 17, { lineBreak: false })
+      doc.text(sku, COL_ITEM_X + 16, Y + 4 + lines * 13, { lineBreak: false })
     }
 
-    // QTY / Price / Amount — pinned to row top
-    doc.font('Helvetica').fontSize(10).fillColor(C_TEXT)
-    doc.text(qty,    T_QTY_X,   Y + 4, { width: T_QTY_W,   align: 'center', lineBreak: false })
-    doc.text(price,  T_PRICE_X, Y + 4, { width: T_PRICE_W, align: 'right',  lineBreak: false })
+    // QTY / Price / Amount — all pinned to rowY (no wrapping)
+    doc.font('Helvetica').fontSize(9.5).fillColor(C_TEXT)
+    doc.text(qty,    COL_QTY_X,   Y + 4, { width: COL_QTY_W,   align: 'center', lineBreak: false })
+    doc.text(price,  COL_PRICE_X, Y + 4, { width: COL_PRICE_W, align: 'right',  lineBreak: false })
     doc.font('Helvetica-Bold')
-    doc.text(amount, T_AMT_X,   Y + 4, { width: T_AMT_W,   align: 'right',  lineBreak: false })
+    doc.text(amount, COL_AMT_X,   Y + 4, { width: COL_AMT_W,   align: 'right',  lineBreak: false })
 
     Y += rowH
-
-    // Row divider
     doc.moveTo(CARD_X, Y).lineTo(CARD_X + CARD_W, Y).strokeColor(C_BORDER).lineWidth(0.3).stroke()
     Y += 2
   })
@@ -308,9 +306,9 @@ export async function renderInvoicePdf({
   Y += 18
 
   // ── TOTALS ─────────────────────────────────────────────────────────────────
-  const TOT_LABEL_X = CR - 240
-  const TOT_VAL_X   = CR - 120
-  const TOT_VAL_W   = 120
+  const TOT_LABEL_X = CR - 260
+  const TOT_VAL_X   = COL_AMT_X
+  const TOT_VAL_W   = COL_AMT_W
 
   const totRow = (label: string, value: string, bold = false, color = C_MUTED) => {
     doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 11 : 9.5).fillColor(color)
