@@ -151,7 +151,7 @@ export async function renderInvoicePdf({
   // [Logo + Store name]    [Invoice No.]  [Issued]  [Status]
   const LOGO_SZ = 32
   if (logoPath) {
-    try { doc.image(logoPath, CX, Y, { width: LOGO_SZ }) } catch { /* ignore */ }
+    try { doc.image(logoPath, CX, Y, { width: LOGO_SZ, height: LOGO_SZ }) } catch { /* ignore */ }
   }
   const nameX = logoPath ? CX + LOGO_SZ + 10 : CX
   doc.font('Helvetica-Bold').fontSize(14).fillColor(C_TEXT)
@@ -189,12 +189,12 @@ export async function renderInvoicePdf({
   // From card
   card(LEFT_X, Y, HALF_W, fromToH, C_SURFACE)
   doc.font('Helvetica').fontSize(8).fillColor(C_MUTED)
-  doc.text('↑  From', LEFT_X + 14, Y + 12, { lineBreak: false })
+  doc.text('From', LEFT_X + 14, Y + 12, { lineBreak: false })
   doc.moveTo(LEFT_X, Y + 28).lineTo(LEFT_X + HALF_W, Y + 28).strokeColor(C_BORDER).lineWidth(0.4).stroke()
 
   let fy = Y + 38
   if (logoPath) {
-    try { doc.image(logoPath, LEFT_X + 14, fy, { width: 28 }) } catch { /* ignore */ }
+    try { doc.image(logoPath, LEFT_X + 14, fy, { width: 28, height: 28 }) } catch { /* ignore */ }
   }
   const fromTextX = logoPath ? LEFT_X + 50 : LEFT_X + 14
   doc.font('Helvetica-Bold').fontSize(11).fillColor(C_TEXT)
@@ -214,7 +214,7 @@ export async function renderInvoicePdf({
   // To card
   card(RIGHT_X, Y, HALF_W, fromToH, C_WHITE)
   doc.font('Helvetica').fontSize(8).fillColor(C_MUTED)
-  doc.text('↓  To', RIGHT_X + 14, Y + 12, { lineBreak: false })
+  doc.text('To', RIGHT_X + 14, Y + 12, { lineBreak: false })
   doc.moveTo(RIGHT_X, Y + 28).lineTo(RIGHT_X + HALF_W, Y + 28).strokeColor(C_BORDER).lineWidth(0.4).stroke()
 
   let ty2 = Y + 38
