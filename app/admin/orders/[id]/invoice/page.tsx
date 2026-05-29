@@ -142,6 +142,7 @@ export default function InvoicePage() {
           <div className="flex items-center gap-3">
             <a
               href={`/admin/orders/${order.id}/invoice/download`}
+              download
               className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 transition hover:border-gray-900 hover:text-gray-900"
             >
               <Download className="mr-2 h-4 w-4" />

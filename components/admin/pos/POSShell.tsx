@@ -255,11 +255,7 @@ export default function POSShell({ initialProducts, categories, initialCustomers
             return
         }
 
-        // Open window before await to prevent popup blocker
-        let invoiceWindow: Window | null = null;
-        if (openInvoice) {
-            invoiceWindow = window.open('about:blank', '_blank')
-        }
+        // No need to open a window, we will trigger download directly
         setIsProcessing(true)
 
         const orderInput = {
@@ -289,10 +285,27 @@ export default function POSShell({ initialProducts, categories, initialCustomers
 
         if (res.success) {
             if (openInvoice) {
-                if (invoiceWindow) {
-                    invoiceWindow.location.href = `/admin/orders/${res.orderId}/invoice`
-                } else {
-                    window.open(`/admin/orders/${res.orderId}/invoice`, '_blank') // Fallback 
+                try {
+                    const dlRes = await fetch(`/admin/orders/${res.orderId}/invoice/download`)
+                    if (!dlRes.ok) throw new Error('Failed to download invoice')
+                    const blob = await dlRes.blob()
+                    const url = window.URL.createObjectURL(blob)
+                    const link = document.createElement('a')
+                    link.href = url
+                    // Try to get filename from Content-Disposition if possible, otherwise fallback
+                    const cd = dlRes.headers.get('Content-Disposition')
+                    let filename = `invoice-${res.orderId}.pdf`
+                    if (cd && cd.includes('filename=')) {
+                        filename = cd.split('filename=')[1].replace(/"/g, '')
+                    }
+                    link.download = filename
+                    document.body.appendChild(link)
+                    link.click()
+                    document.body.removeChild(link)
+                    window.URL.revokeObjectURL(url)
+                } catch (e) {
+                    console.error('Download failed', e)
+                    alert('Failed to download the PDF invoice.')
                 }
             }
             setCart([])
