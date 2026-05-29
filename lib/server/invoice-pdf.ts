@@ -334,14 +334,7 @@ export async function renderInvoicePdf({
 
   Y += 16
 
-  // ── TERMS & NOTES ──────────────────────────────────────────────────────
-  hRule(Y)
-  Y += 14
 
-  const termsText = template.termsBody || 'Goods once sold will not be returned. Exchange is subject to store policy within 7 days of purchase with original invoice. Items must be unused and in original condition.'
-  doc.font('Helvetica').fontSize(9).fillColor(C_MUTED)
-  doc.text(termsText, CX, Y, { width: CW, lineGap: 2 })
-  Y = doc.y + 10
 
   if (template.showNotes && order.notes) {
     doc.font('Helvetica-Bold').fontSize(8).fillColor(C_MUTED)

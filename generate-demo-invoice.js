@@ -294,14 +294,7 @@ totRow('Total', fmt(order.total_amount), true)
 
 Y += 14
 
-// ── TERMS & NOTES ──────────────────────────────────────────────────────
-divider(Y)
-Y += 14
 
-const termsText = settings.invoice_notes || 'Goods once sold will be exchanged or serviced only as per store policy.'
-doc.font('Helvetica').fontSize(9).fillColor(C_MUTED)
-doc.text(termsText, CX, Y, { width: CW, lineGap: 2 })
-Y = doc.y + 10
 
 // ── 8. FOOTER ──────────────────────────────────────────────────────────────
 const FOOTER_Y = CARD_Y + CARD_H - 36
