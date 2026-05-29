@@ -320,10 +320,9 @@ export default function POSShell({ initialProducts, categories, initialCustomers
             setSelectedCustomer(null)
             setIsMobileCartOpen(false)
         } else {
-            if (invoiceWindow) invoiceWindow.close()
-            alert("Error: " + res.error)
+            alert(res.error || 'Failed to complete checkout')
+            setIsProcessing(false)
         }
-        setIsProcessing(false)
     }
 
     return (
