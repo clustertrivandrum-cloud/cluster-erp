@@ -30,7 +30,6 @@ type AppSettings = {
 function formatCurrency(amount: number | string | null | undefined, currency = 'INR') {
   const value = typeof amount === 'number' ? amount : Number(amount ?? 0)
   const safeValue = Number.isFinite(value) ? value : 0
-
   try {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -43,57 +42,13 @@ function formatCurrency(amount: number | string | null | undefined, currency = '
 }
 
 function formatAddress(address?: Record<string, unknown> | null) {
-  if (!address) {
-    return []
-  }
-
+  if (!address) return []
   const preferredKeys = ['name', 'line1', 'line2', 'city', 'state', 'postal_code', 'country', 'phone']
   const orderedValues = preferredKeys
     .map((key) => address[key])
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-
-  if (orderedValues.length > 0) {
-    return orderedValues
-  }
-
+  if (orderedValues.length > 0) return orderedValues
   return Object.values(address).filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-}
-
-function wrapText(doc: PDFKit.PDFDocument, text: string, x: number, y: number, width: number, options?: PDFKit.Mixins.TextOptions) {
-  doc.text(text, x, y, { width, ...options })
-  return doc.y
-}
-
-function drawInfoCard(doc: PDFKit.PDFDocument, {
-  x,
-  y,
-  width,
-  height,
-  title,
-  lines,
-  fillColor,
-}: {
-  x: number
-  y: number
-  width: number
-  height: number
-  title: string
-  lines: string[]
-  fillColor: string
-}) {
-  doc.save()
-  doc.roundedRect(x, y, width, height, 12).fill(fillColor)
-  doc.restore()
-
-  doc.fillColor('#6b7280').font('Helvetica-Bold').fontSize(9)
-  doc.text(title.toUpperCase(), x + 16, y + 14, { width: width - 32 })
-
-  let cursorY = y + 32
-  lines.forEach((line, index) => {
-    doc.font(index === 0 ? 'Helvetica-Bold' : 'Helvetica').fontSize(index === 0 ? 13 : 10.5).fillColor(index === 0 ? '#111827' : '#4b5563')
-    cursorY = wrapText(doc, line, x + 16, cursorY, width - 32, { lineGap: 2 })
-    cursorY += index === 0 ? 4 : 2
-  })
 }
 
 export async function renderInvoicePdf({
@@ -119,7 +74,7 @@ export async function renderInvoicePdf({
     size: 'A4',
     margins: { top: 42, bottom: 42, left: 42, right: 42 },
     info: {
-      Title: `${settings?.store_name || 'Cluster Fascination'} invoice ${order.order_number || order.id}`,
+      Title: `${settings?.store_name || 'Cluster Fascination'} Invoice ${order.order_number || order.id}`,
       Author: settings?.store_name || 'Cluster Fascination',
       Subject: `Invoice ${order.order_number || order.id}`,
     },
@@ -128,183 +83,318 @@ export async function renderInvoicePdf({
   const chunks: Buffer[] = []
   doc.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
 
-  const pageWidth = doc.page.width
-  const pageHeight = doc.page.height
-  const left = 42
-  const right = pageWidth - 42
-  const contentWidth = right - left
+  const pageWidth = doc.page.width   // 595.28 for A4
+  const pageHeight = doc.page.height // 841.89 for A4
+  const ML = 42   // margin left
+  const MR = 42   // margin right
+  const CW = pageWidth - ML - MR    // content width ≈ 511
+
+  // ─── Column X positions for the items table ───────────────────────────
+  // Item | SKU | Price | Qty | Total
+  const COL_ITEM_X   = ML
+  const COL_ITEM_W   = 210
+  const COL_SKU_X    = COL_ITEM_X + COL_ITEM_W + 4
+  const COL_SKU_W    = 80
+  const COL_PRICE_X  = COL_SKU_X + COL_SKU_W + 4
+  const COL_PRICE_W  = 72
+  const COL_QTY_X    = COL_PRICE_X + COL_PRICE_W + 4
+  const COL_QTY_W    = 40
+  const COL_TOTAL_X  = COL_QTY_X + COL_QTY_W + 4
+  const COL_TOTAL_W  = CW - (COL_TOTAL_X - ML)
+
+  // ─── Load logo once ───────────────────────────────────────────────────
+  let logoPath: string | null = null
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require('fs') as typeof import('fs')
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require('path') as typeof import('path')
+    const p = path.join(process.cwd(), 'public', 'logo.png')
+    if (fs.existsSync(p)) logoPath = p
+  } catch { /* ignore */ }
+
+  // ─── Page header (repeated on every page) ────────────────────────────
+  const HEADER_H = 130  // height reserved for header on every page
 
   const drawPageHeader = () => {
-    doc.save()
-    doc.rect(0, 0, pageWidth, 12).fill(template.accentColor)
-    doc.restore()
+    // Accent bar at very top
+    doc.save().rect(0, 0, pageWidth, 10).fill(template.accentColor).restore()
 
-    let headerTextX = left
-    try {
-      const fs = require('fs')
-      const path = require('path')
-      const logoPath = path.join(process.cwd(), 'public', 'logo.png')
-      if (fs.existsSync(logoPath)) {
-        doc.image(logoPath, left, 28, { width: 44, height: 44 })
-        headerTextX = left + 56
-      }
-    } catch (e) {
-      // Ignore if logo loading fails
+    // Logo
+    const LOGO_SIZE = 40
+    const LOGO_X = ML
+    const LOGO_Y = 18
+
+    if (logoPath) {
+      try { doc.image(logoPath, LOGO_X, LOGO_Y, { width: LOGO_SIZE, height: LOGO_SIZE }) } catch { /* ignore */ }
     }
 
-    doc.fillColor('#6b7280').font('Helvetica-Bold').fontSize(9)
-    doc.text(template.headerLabel.toUpperCase(), headerTextX, 28)
+    const textX = logoPath ? LOGO_X + LOGO_SIZE + 10 : ML
 
-    doc.fillColor(template.accentColor).font('Helvetica-Bold').fontSize(24)
-    doc.text(settings?.store_name || 'Cluster ERP', headerTextX, 44, { width: contentWidth * 0.58 })
+    // Store label
+    doc.fillColor('#9ca3af').font('Helvetica-Bold').fontSize(7)
+    doc.text(template.headerLabel.toUpperCase(), textX, 20, { characterSpacing: 1 })
 
-    doc.font('Helvetica').fontSize(10).fillColor('#4b5563')
-    let infoY = 74
-    if (settings?.store_address) {
-      infoY = wrapText(doc, settings.store_address, headerTextX, infoY, contentWidth * 0.58, { lineGap: 2 })
-      infoY += 4
+    // Store name
+    doc.fillColor(template.accentColor).font('Helvetica-Bold').fontSize(22)
+    doc.text(settings?.store_name || 'Cluster Fascination', textX, 32, { width: CW * 0.55, lineBreak: false })
+
+    // Store contact
+    doc.font('Helvetica').fontSize(9).fillColor('#6b7280')
+    const contactLines: string[] = []
+    if (settings?.store_address) contactLines.push(settings.store_address)
+    if (settings?.store_phone) contactLines.push(`Ph: ${settings.store_phone}`)
+    if (settings?.store_email) contactLines.push(`Email: ${settings.store_email}`)
+    if (settings?.gstin) contactLines.push(`GSTIN: ${settings.gstin}`)
+    if (contactLines.length > 0) {
+      doc.text(contactLines.join('  ·  '), textX, 60, { width: CW * 0.55, lineGap: 2 })
     }
-    const storeMeta = [settings?.store_phone ? `Phone: ${settings.store_phone}` : '', settings?.store_email ? `Email: ${settings.store_email}` : '', settings?.gstin ? `GSTIN: ${settings.gstin}` : ''].filter(Boolean)
-    if (storeMeta.length > 0) {
-      wrapText(doc, storeMeta.join('   '), headerTextX, infoY, contentWidth * 0.58, { lineGap: 2 })
-    }
 
-    const metaX = left + contentWidth * 0.63
-    doc.roundedRect(metaX, 28, contentWidth * 0.37, 92, 12).fill(template.layout === 'modern' ? template.accentColor : '#f9fafb')
-    doc.fillColor(template.layout === 'modern' ? '#ffffff' : '#111827').font('Helvetica-Bold').fontSize(10)
-    doc.text('Invoice', metaX + 16, 42)
-    doc.fontSize(18).text(`#${order.order_number || order.id.slice(0, 8)}`, metaX + 16, 58)
-    doc.font('Helvetica').fontSize(10)
-    const metaColor = template.layout === 'modern' ? '#e5e7eb' : '#4b5563'
-    doc.fillColor(metaColor).text(`Date: ${new Date(order.created_at).toLocaleDateString()}`, metaX + 16, 84)
-    doc.text(`Status: ${order.payment_status}`, metaX + 16, 98)
+    // Invoice meta card (right side)
+    const CARD_W = 160
+    const CARD_X = pageWidth - MR - CARD_W
+    const CARD_Y = 18
+    const CARD_H = 100
+    doc.roundedRect(CARD_X, CARD_Y, CARD_W, CARD_H, 10)
+      .fill(template.layout === 'modern' ? template.accentColor : '#f3f4f6')
+
+    const textColor = template.layout === 'modern' ? '#ffffff' : '#111827'
+    const subColor  = template.layout === 'modern' ? '#d1d5db' : '#6b7280'
+
+    doc.fillColor(subColor).font('Helvetica').fontSize(8)
+    doc.text('INVOICE', CARD_X + 14, CARD_Y + 14, { width: CARD_W - 28 })
+
+    doc.fillColor(textColor).font('Helvetica-Bold').fontSize(20)
+    doc.text(`#${order.order_number || order.id.slice(0, 8)}`, CARD_X + 14, CARD_Y + 26, { width: CARD_W - 28 })
+
+    doc.fillColor(subColor).font('Helvetica').fontSize(8.5)
+    doc.text(`Date: ${new Date(order.created_at).toLocaleDateString('en-IN')}`, CARD_X + 14, CARD_Y + 56, { width: CARD_W - 28 })
+    doc.text(`Status: ${order.payment_status}`, CARD_X + 14, CARD_Y + 72, { width: CARD_W - 28 })
+
+    // Divider under header
+    doc.moveTo(ML, HEADER_H - 6).lineTo(pageWidth - MR, HEADER_H - 6)
+      .strokeColor('#e5e7eb').lineWidth(0.5).stroke()
   }
 
-  const ensureSpace = (requiredHeight: number) => {
-    if (doc.y + requiredHeight <= pageHeight - 42) {
-      return
+  // ─── Ensure enough space, or add a new page ───────────────────────────
+  const ensureSpace = (needed: number) => {
+    if (doc.y + needed > pageHeight - MR) {
+      doc.addPage()
+      drawPageHeader()
+      doc.y = HEADER_H + 8
+    }
+  }
+
+  // ─── Draw info cards side by side without advancing doc.y ─────────────
+  const drawInfoCards = (startY: number): number => {
+    const cardW = (CW - 12) / 2
+    const leftCardX = ML
+    const rightCardX = ML + cardW + 12
+
+    // Measure how tall each card needs to be
+    const measureLines = (lines: string[], cardWidth: number) => {
+      let h = 32 // title + padding
+      lines.forEach((line, i) => {
+        const fontSize = i === 0 ? 12 : 9.5
+        const lineH = fontSize * 1.4
+        // Rough chars-per-line estimate
+        const charsPerLine = Math.floor((cardWidth - 32) / (fontSize * 0.55))
+        const wrappedLines = Math.max(1, Math.ceil(line.length / charsPerLine))
+        h += lineH * wrappedLines + (i === 0 ? 4 : 2)
+      })
+      return h + 16 // bottom padding
     }
 
-    doc.addPage()
-    drawPageHeader()
-    doc.y = 138
-  }
-
-  const drawTableHeader = (tableTop: number) => {
-    doc.save()
-    doc.roundedRect(left, tableTop, contentWidth, 24, 8).fill(template.surfaceColor)
-    doc.restore()
-    doc.fillColor('#4b5563').font('Helvetica-Bold').fontSize(9)
-    doc.text('Item', left + 12, tableTop + 8, { width: 220 })
-    doc.text('SKU', left + 240, tableTop + 8, { width: 84 })
-    doc.text('Price', left + 330, tableTop + 8, { width: 70, align: 'right' })
-    doc.text('Qty', left + 408, tableTop + 8, { width: 46, align: 'right' })
-    doc.text('Total', left + 458, tableTop + 8, { width: 80, align: 'right' })
-  }
-
-  drawPageHeader()
-  doc.y = 138
-
-  drawInfoCard(doc, {
-    x: left,
-    y: doc.y,
-    width: (contentWidth - 16) / 2,
-    height: 118,
-    title: 'Bill To',
-    lines: [
+    const billLines = [
       order.customer_label,
       order.customer_email || 'No email',
       order.customer_phone || 'No phone',
       ...billingAddress,
-    ],
-    fillColor: template.surfaceColor,
-  })
-
-  drawInfoCard(doc, {
-    x: left + (contentWidth - 16) / 2 + 16,
-    y: doc.y,
-    width: (contentWidth - 16) / 2,
-    height: 118,
-    title: 'Order Details',
-    lines: [
+    ]
+    const orderLines = [
       `Items: ${order.item_count}`,
       `Channel: ${order.sales_channel}`,
       `Payment: ${order.payment_method || 'N/A'}`,
-      ...shippingAddress.slice(0, 4),
-    ],
-    fillColor: '#ffffff',
-  })
+      ...shippingAddress.slice(0, 3),
+    ]
 
-  doc.y += 142
+    const cardH = Math.max(
+      measureLines(billLines, cardW),
+      measureLines(orderLines, cardW),
+      100,
+    )
+
+    // Bill To card
+    doc.roundedRect(leftCardX, startY, cardW, cardH, 10).fill(template.surfaceColor)
+    doc.fillColor('#9ca3af').font('Helvetica-Bold').fontSize(8)
+    doc.text('BILL TO', leftCardX + 14, startY + 14, { characterSpacing: 0.8 })
+    let cy = startY + 30
+    billLines.forEach((line, i) => {
+      doc.font(i === 0 ? 'Helvetica-Bold' : 'Helvetica')
+        .fontSize(i === 0 ? 12 : 9.5)
+        .fillColor(i === 0 ? '#111827' : '#4b5563')
+      doc.text(line, leftCardX + 14, cy, { width: cardW - 28, lineGap: 1 })
+      cy = doc.y + (i === 0 ? 4 : 2)
+    })
+
+    // Order Details card
+    doc.roundedRect(rightCardX, startY, cardW, cardH, 10).fill('#ffffff')
+    doc.strokeColor('#e5e7eb').lineWidth(0.5)
+      .roundedRect(rightCardX, startY, cardW, cardH, 10).stroke()
+    doc.fillColor('#9ca3af').font('Helvetica-Bold').fontSize(8)
+    doc.text('ORDER DETAILS', rightCardX + 14, startY + 14, { characterSpacing: 0.8 })
+    cy = startY + 30
+    orderLines.forEach((line, i) => {
+      doc.font(i === 0 ? 'Helvetica-Bold' : 'Helvetica')
+        .fontSize(i === 0 ? 12 : 9.5)
+        .fillColor(i === 0 ? '#111827' : '#4b5563')
+      doc.text(line, rightCardX + 14, cy, { width: cardW - 28, lineGap: 1 })
+      cy = doc.y + (i === 0 ? 4 : 2)
+    })
+
+    return startY + cardH + 16 // return Y after both cards
+  }
+
+  // ─── Draw table header row ─────────────────────────────────────────────
+  const TABLE_ROW_H = 24
+
+  const drawTableHeader = (y: number) => {
+    doc.roundedRect(ML, y, CW, TABLE_ROW_H, 6).fill(template.surfaceColor)
+    doc.fillColor('#6b7280').font('Helvetica-Bold').fontSize(8.5)
+    doc.text('ITEM',  COL_ITEM_X  + 8, y + 8, { width: COL_ITEM_W,  lineBreak: false })
+    doc.text('SKU',   COL_SKU_X,       y + 8, { width: COL_SKU_W,   lineBreak: false })
+    doc.text('PRICE', COL_PRICE_X,     y + 8, { width: COL_PRICE_W, align: 'right', lineBreak: false })
+    doc.text('QTY',   COL_QTY_X,       y + 8, { width: COL_QTY_W,   align: 'right', lineBreak: false })
+    doc.text('TOTAL', COL_TOTAL_X,     y + 8, { width: COL_TOTAL_W, align: 'right', lineBreak: false })
+    return y + TABLE_ROW_H
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // BUILD THE PDF
+  // ═══════════════════════════════════════════════════════════════════════
+
+  drawPageHeader()
+  let curY = HEADER_H + 8
+
+  // ── Info cards ──────────────────────────────────────────────────────────
+  ensureSpace(120)
+  curY = drawInfoCards(curY)
+  doc.y = curY
+
+  // ── Items table ─────────────────────────────────────────────────────────
   ensureSpace(60)
-
-  drawTableHeader(doc.y)
-  doc.y += 34
+  curY = drawTableHeader(doc.y)
 
   doc.font('Helvetica').fontSize(10).fillColor('#111827')
+
   for (const item of order.order_items) {
-    const rowHeight = 22
-    ensureSpace(rowHeight + 8)
+    const itemTitle = item.product_variants?.products?.title || 'Item'
+    const sku       = item.product_variants?.sku || '—'
+    const price     = formatCurrency(item.unit_price, currency)
+    const qty       = String(item.quantity)
+    const total     = formatCurrency(item.total_price, currency)
 
-    doc.text(item.product_variants?.products?.title || 'Item', left + 12, doc.y, { width: 220 })
-    doc.fillColor('#4b5563').text(item.product_variants?.sku || '—', left + 240, doc.y, { width: 84 })
-    doc.fillColor('#111827').text(formatCurrency(item.unit_price, currency), left + 330, doc.y, { width: 70, align: 'right' })
-    doc.text(String(item.quantity), left + 408, doc.y, { width: 46, align: 'right' })
-    doc.text(formatCurrency(item.total_price, currency), left + 458, doc.y, { width: 80, align: 'right' })
+    // Measure wrapped height of item title
+    const titleLineH = 13
+    const charsPerLine = Math.floor(COL_ITEM_W / 6.2)
+    const titleLines = Math.max(1, Math.ceil(itemTitle.length / charsPerLine))
+    const rowH = Math.max(TABLE_ROW_H, titleLines * titleLineH + 10)
 
-    const lineY = doc.y + rowHeight - 4
-    doc.moveTo(left, lineY).lineTo(right, lineY).strokeColor('#e5e7eb').lineWidth(1).stroke()
-    doc.y += rowHeight
+    ensureSpace(rowH + 6)
+
+    const rowY = doc.y
+
+    // Item name (may wrap)
+    doc.fillColor('#111827').font('Helvetica-Bold').fontSize(9.5)
+    doc.text(itemTitle, COL_ITEM_X + 8, rowY + 6, { width: COL_ITEM_W, lineGap: 1 })
+
+    // Other cols pinned to rowY (single line, no wrap)
+    doc.fillColor('#6b7280').font('Helvetica').fontSize(9)
+    doc.text(sku,   COL_SKU_X,   rowY + 6, { width: COL_SKU_W,   lineBreak: false })
+    doc.fillColor('#111827')
+    doc.text(price, COL_PRICE_X, rowY + 6, { width: COL_PRICE_W, align: 'right', lineBreak: false })
+    doc.text(qty,   COL_QTY_X,   rowY + 6, { width: COL_QTY_W,   align: 'right', lineBreak: false })
+    doc.font('Helvetica-Bold')
+    doc.text(total, COL_TOTAL_X, rowY + 6, { width: COL_TOTAL_W, align: 'right', lineBreak: false })
+
+    // Row divider
+    const divY = rowY + rowH
+    doc.moveTo(ML, divY).lineTo(pageWidth - MR, divY).strokeColor('#f3f4f6').lineWidth(0.5).stroke()
+
+    doc.y = divY + 2
+    curY  = doc.y
   }
 
-  doc.y += 14
-  ensureSpace(170)
+  // ── Totals block ────────────────────────────────────────────────────────
+  curY += 14
+  ensureSpace(160)
+  doc.y = curY
 
-  const totalsX = left + contentWidth - 220
-  doc.roundedRect(totalsX, doc.y, 220, 112, 12).fill('#ffffff')
-  doc.strokeColor('#e5e7eb').roundedRect(totalsX, doc.y, 220, 112, 12).stroke()
-  let totalsY = doc.y + 16
-  const totalsRows = [
-    ['Subtotal', formatCurrency(totals.subtotal, currency)],
-    ...(totals.discount > 0 ? [['Discount', `-${formatCurrency(totals.discount, currency)}`]] as string[][] : []),
-    ['Tax', formatCurrency(totals.tax, currency)],
-    ['Shipping', formatCurrency(totals.shipping, currency)],
+  const TOTALS_W = 220
+  const TOTALS_X = pageWidth - MR - TOTALS_W
+  const totalsRows: [string, string, boolean][] = [
+    ['Subtotal', formatCurrency(totals.subtotal, currency), false],
+    ...(totals.discount > 0 ? [['Discount', `-${formatCurrency(totals.discount, currency)}`, true] as [string, string, boolean]] : []),
+    ['Tax', formatCurrency(totals.tax, currency), false],
+    ['Shipping', formatCurrency(totals.shipping, currency), false],
   ]
-  totalsRows.forEach(([label, value]) => {
-    doc.fillColor(label === 'Discount' ? '#dc2626' : '#4b5563').font('Helvetica').fontSize(10)
-    doc.text(label, totalsX + 14, totalsY, { width: 90 })
-    doc.text(value, totalsX + 100, totalsY, { width: 100, align: 'right' })
-    totalsY += 18
+
+  const totalsBoxH = totalsRows.length * 20 + 44
+  doc.roundedRect(TOTALS_X, doc.y, TOTALS_W, totalsBoxH, 10).fill('#f9fafb')
+  doc.strokeColor('#e5e7eb').lineWidth(0.5).roundedRect(TOTALS_X, doc.y, TOTALS_W, totalsBoxH, 10).stroke()
+
+  let ty = doc.y + 14
+  totalsRows.forEach(([label, value, isDiscount]) => {
+    doc.font('Helvetica').fontSize(9.5).fillColor(isDiscount ? '#dc2626' : '#6b7280')
+    doc.text(label, TOTALS_X + 14, ty, { width: 90, lineBreak: false })
+    doc.text(value, TOTALS_X + 100, ty, { width: TOTALS_W - 114, align: 'right', lineBreak: false })
+    ty += 20
   })
-  doc.moveTo(totalsX + 14, totalsY + 4).lineTo(totalsX + 206, totalsY + 4).strokeColor('#e5e7eb').stroke()
-  doc.fillColor('#111827').font('Helvetica-Bold').fontSize(12)
-  doc.text('Grand Total', totalsX + 14, totalsY + 14, { width: 90 })
-  doc.text(formatCurrency(totals.grand, currency), totalsX + 100, totalsY + 14, { width: 100, align: 'right' })
 
-  doc.y = Math.max(doc.y + 128, totalsY + 44)
-  ensureSpace(150)
+  doc.moveTo(TOTALS_X + 14, ty + 2).lineTo(TOTALS_X + TOTALS_W - 14, ty + 2)
+    .strokeColor('#d1d5db').lineWidth(0.5).stroke()
 
-  doc.roundedRect(left, doc.y, contentWidth, order.notes ? 120 : 92, 12).fill('#ffffff')
-  doc.strokeColor('#e5e7eb').roundedRect(left, doc.y, contentWidth, order.notes ? 120 : 92, 12).stroke()
-  doc.fillColor('#6b7280').font('Helvetica-Bold').fontSize(9)
-  doc.text(template.termsTitle.toUpperCase(), left + 16, doc.y + 14)
-  doc.font('Helvetica').fontSize(10).fillColor('#4b5563')
-  wrapText(doc, template.termsBody, left + 16, doc.y + 30, contentWidth - 32, { lineGap: 2 })
+  doc.fillColor('#111827').font('Helvetica-Bold').fontSize(11)
+  doc.text('Grand Total', TOTALS_X + 14, ty + 10, { width: 90, lineBreak: false })
+  doc.fontSize(13).text(formatCurrency(totals.grand, currency), TOTALS_X + 100, ty + 8, {
+    width: TOTALS_W - 114, align: 'right', lineBreak: false,
+  })
+
+  doc.y = doc.y + totalsBoxH + 20
+  curY = doc.y
+
+  // ── Terms & Notes ───────────────────────────────────────────────────────
+  ensureSpace(120)
+  doc.y = curY
+
+  const termsH = order.notes ? 130 : 90
+  doc.roundedRect(ML, doc.y, CW, termsH, 10).fill('#ffffff')
+  doc.strokeColor('#e5e7eb').lineWidth(0.5).roundedRect(ML, doc.y, CW, termsH, 10).stroke()
+
+  doc.fillColor('#9ca3af').font('Helvetica-Bold').fontSize(8)
+  doc.text(template.termsTitle.toUpperCase(), ML + 16, doc.y + 14, { characterSpacing: 0.8 })
+  doc.font('Helvetica').fontSize(9.5).fillColor('#4b5563')
+  doc.text(template.termsBody, ML + 16, doc.y + 28, { width: CW - 32, lineGap: 2 })
 
   if (template.showNotes && order.notes) {
-    doc.fillColor('#6b7280').font('Helvetica-Bold').fontSize(9)
-    doc.text('NOTES', left + 16, doc.y + 18)
-    doc.font('Helvetica').fontSize(10).fillColor('#4b5563')
-    wrapText(doc, order.notes, left + 16, doc.y + 34, contentWidth - 32, { lineGap: 2 })
+    const noteY = doc.y + 6
+    doc.fillColor('#9ca3af').font('Helvetica-Bold').fontSize(8)
+    doc.text('NOTES', ML + 16, noteY, { characterSpacing: 0.8 })
+    doc.font('Helvetica').fontSize(9.5).fillColor('#4b5563')
+    doc.text(order.notes, ML + 16, noteY + 14, { width: CW - 32, lineGap: 2 })
   }
 
-  doc.y += order.notes ? 136 : 108
+  doc.y += termsH + 20
   ensureSpace(50)
 
-  doc.moveTo(left, doc.y).lineTo(right, doc.y).strokeColor('#e5e7eb').stroke()
-  doc.fillColor('#6b7280').font('Helvetica').fontSize(10)
-  doc.text(template.footerNote, left, doc.y + 12, { width: contentWidth, align: 'center' })
-  doc.text(`For any enquiries, contact ${settings?.store_email || 'our team'}.`, left, doc.y + 28, { width: contentWidth, align: 'center' })
+  // ── Footer ──────────────────────────────────────────────────────────────
+  doc.moveTo(ML, doc.y).lineTo(pageWidth - MR, doc.y).strokeColor('#e5e7eb').lineWidth(0.5).stroke()
+  doc.fillColor('#9ca3af').font('Helvetica').fontSize(9)
+  doc.text(template.footerNote, ML, doc.y + 12, { width: CW, align: 'center' })
+  doc.text(
+    `For any enquiries, contact ${settings?.store_email || 'our team'}.`,
+    ML, doc.y + 26, { width: CW, align: 'center' },
+  )
 
   doc.end()
 
