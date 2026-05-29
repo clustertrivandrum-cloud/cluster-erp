@@ -123,6 +123,7 @@ export default function POSShell({ initialProducts, categories, initialCustomers
 
     useEffect(() => {
         if (!selectedCustomer) {
+            setCustomerDetails({ fullName: '', email: '', phone: '' })
             return
         }
 
