@@ -1,5 +1,6 @@
 export type PosInventoryItem = {
     available_quantity?: number | string | null
+    reserved_quantity?:  number | string | null
 }
 
 export type PosVariantMedia = {
