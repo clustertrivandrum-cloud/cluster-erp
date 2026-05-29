@@ -143,11 +143,6 @@ export async function renderInvoicePdf({
     doc.text(value, x, y + 12, { width: w, lineBreak: false })
   }
 
-  const smallLabel = (label: string, x: number, y: number, w: number) => {
-    doc.font('Helvetica').fontSize(7).fillColor(C_MUTED)
-    doc.text(label.toUpperCase(), x, y, { width: w, characterSpacing: 0.4, lineBreak: false })
-  }
-
   const bodyText = (text: string, x: number, y: number, w: number, opts: object = {}) => {
     doc.font('Helvetica').fontSize(9).fillColor(C_TEXT)
     doc.text(text, x, y, { width: w, lineGap: 1, ...opts })
@@ -192,21 +187,21 @@ export async function renderInvoicePdf({
   const textWidth = HALF_W - 28
   
   let fromH = 68 // base padding and header
-  if (storeAddr)  fromH += 10 + doc.heightOfString(storeAddr, { width: textWidth, lineGap: 1 }) + 4
-  if (storePhone) fromH += 10 + doc.heightOfString(storePhone, { width: textWidth, lineGap: 1 }) + 4
-  if (storeEmail) fromH += 10 + doc.heightOfString(storeEmail, { width: textWidth, lineGap: 1 }) + 4
+  if (storeAddr)  fromH += doc.heightOfString(storeAddr, { width: textWidth, lineGap: 1 }) + 8
+  if (storePhone) fromH += doc.heightOfString(storePhone, { width: textWidth, lineGap: 1 }) + 8
+  if (storeEmail) fromH += doc.heightOfString(storeEmail, { width: textWidth, lineGap: 1 }) + 8
 
   let toH = 68
   if (customerName) toH += 20
   if (order.customer_email) {
     doc.fontSize(8.5)
-    toH += doc.heightOfString(order.customer_email, { width: textWidth }) + 4
+    toH += doc.heightOfString(order.customer_email, { width: textWidth }) + 8
     doc.fontSize(9)
   }
   const toPhone = order.customer_phone || order.guest_phone || ''
-  if (toPhone) toH += 10 + doc.heightOfString(toPhone, { width: textWidth, lineGap: 1 }) + 4
-  if (order.payment_method) toH += 10 + doc.heightOfString(order.payment_method, { width: textWidth, lineGap: 1 }) + 4
-  if (paymentRef) toH += 10 + doc.heightOfString(paymentRef, { width: textWidth, lineGap: 1 }) + 4
+  if (toPhone) toH += doc.heightOfString(toPhone, { width: textWidth, lineGap: 1 }) + 8
+  if (order.payment_method) toH += doc.heightOfString(order.payment_method, { width: textWidth, lineGap: 1 }) + 8
+  if (paymentRef) toH += doc.heightOfString(paymentRef, { width: textWidth, lineGap: 1 }) + 8
 
   const cardH = Math.max(120, fromH, toH)
 
@@ -225,18 +220,12 @@ export async function renderInvoicePdf({
   doc.text(storeName, fromTX, INNER_Y + 5, { lineBreak: false })
 
   let fy = INNER_Y + 22
-  smallLabel('Address', LEFT_X + 14, fy, HALF_W - 28)
-  fy += 10
-  fy = bodyText(storeAddr, LEFT_X + 14, fy, HALF_W - 28) + 4
+  fy = bodyText(storeAddr, LEFT_X + 14, fy, HALF_W - 28) + 8
 
   if (storePhone) {
-    smallLabel('Phone', LEFT_X + 14, fy, HALF_W - 28)
-    fy += 10
-    fy = bodyText(storePhone, LEFT_X + 14, fy, HALF_W - 28) + 4
+    fy = bodyText(storePhone, LEFT_X + 14, fy, HALF_W - 28) + 8
   }
   if (storeEmail) {
-    smallLabel('Email', LEFT_X + 14, fy, HALF_W - 28)
-    fy += 10
     bodyText(storeEmail, LEFT_X + 14, fy, HALF_W - 28)
   }
 
@@ -258,15 +247,12 @@ export async function renderInvoicePdf({
     ty += 14
   }
   if (order.customer_phone || order.guest_phone) {
-    smallLabel('Phone', RIGHT_X + 14, ty, HALF_W - 28); ty += 10
-    ty = bodyText(order.customer_phone || order.guest_phone || '', RIGHT_X + 14, ty, HALF_W - 28) + 4
+    ty = bodyText(order.customer_phone || order.guest_phone || '', RIGHT_X + 14, ty, HALF_W - 28) + 8
   }
   if (order.payment_method) {
-    smallLabel('Payment', RIGHT_X + 14, ty, HALF_W - 28); ty += 10
-    ty = bodyText(order.payment_method, RIGHT_X + 14, ty, HALF_W - 28) + 4
+    ty = bodyText(order.payment_method, RIGHT_X + 14, ty, HALF_W - 28) + 8
   }
   if (paymentRef) {
-    smallLabel('Transaction Ref', RIGHT_X + 14, ty, HALF_W - 28); ty += 10
     bodyText(paymentRef, RIGHT_X + 14, ty, HALF_W - 28)
   }
 
@@ -351,10 +337,6 @@ export async function renderInvoicePdf({
   // ── TERMS & NOTES ──────────────────────────────────────────────────────
   hRule(Y)
   Y += 14
-
-  doc.font('Helvetica-Bold').fontSize(8).fillColor(C_MUTED)
-  doc.text('TERMS & NOTES', CX, Y, { characterSpacing: 0.5, lineBreak: false })
-  Y += 13
 
   const termsText = template.termsBody || 'Goods once sold will not be returned. Exchange is subject to store policy within 7 days of purchase with original invoice. Items must be unused and in original condition.'
   doc.font('Helvetica').fontSize(9).fillColor(C_MUTED)

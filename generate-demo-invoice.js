@@ -103,12 +103,11 @@ const metaCol = (label, value, x, y, w) => {
   doc.text(value, x, y + 12, { width: w, lineBreak: false })
 }
 
-const fieldRow = (label, value, x, y, w) => {
-  doc.font('Helvetica').fontSize(7).fillColor(C_MUTED)
-  doc.text(label.toUpperCase(), x, y, { width: w, characterSpacing: 0.4, lineBreak: false })
+function plainTextRow(value, x, y, w) {
+  if (!value) return y
   doc.font('Helvetica').fontSize(9).fillColor(C_TEXT)
-  doc.text(value, x, y + 10, { width: w, lineGap: 1 })
-  return doc.y + 5
+  doc.text(value, x, y, { width: w, lineGap: 1 })
+  return doc.y + 4
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -153,19 +152,19 @@ doc.font('Helvetica').fontSize(9)
 const textWidth = HALF_W - 24
 
 let fromH = 68
-if (settings.store_address) fromH += 10 + doc.heightOfString(settings.store_address, { width: textWidth, lineGap: 1 }) + 4
-if (settings.store_phone)   fromH += 10 + doc.heightOfString(`${settings.store_phone}${settings.gstin ? `   GSTIN: ${settings.gstin}` : ''}`, { width: textWidth, lineGap: 1 }) + 4
+if (settings.store_address) fromH += doc.heightOfString(settings.store_address, { width: textWidth, lineGap: 1 }) + 8
+if (settings.store_phone)   fromH += doc.heightOfString(`${settings.store_phone}${settings.gstin ? `   GSTIN: ${settings.gstin}` : ''}`, { width: textWidth, lineGap: 1 }) + 8
 
 let toH = 68
 if (order.customer_label) toH += 20
 if (order.customer_email) {
   doc.fontSize(8.5)
-  toH += doc.heightOfString(order.customer_email, { width: textWidth }) + 4
+  toH += doc.heightOfString(order.customer_email, { width: textWidth }) + 8
   doc.fontSize(9)
 }
 const toPhone = order.customer_phone
-if (toPhone) toH += 10 + doc.heightOfString(toPhone, { width: textWidth, lineGap: 1 }) + 4
-if (order.payment_method) toH += 10 + doc.heightOfString(order.payment_method, { width: textWidth, lineGap: 1 }) + 4
+if (toPhone) toH += doc.heightOfString(toPhone, { width: textWidth, lineGap: 1 }) + 8
+if (order.payment_method) toH += doc.heightOfString(order.payment_method, { width: textWidth, lineGap: 1 }) + 8
 
 const FROM_TO_H = Math.max(120, fromH, toH)
 
@@ -187,10 +186,13 @@ doc.text(settings.store_name, fromTX, INNER_Y + 4, { lineBreak: false })
 doc.font('Helvetica').fontSize(8).fillColor(C_MUTED)
 doc.text(settings.store_email, fromTX, INNER_Y + 17, { lineBreak: false })
 
-let fy = INNER_Y + 36
-fy = fieldRow('Address', settings.store_address, LEFT_CARD + 12, fy, HALF_W - 24)
-const contactStr = [settings.store_phone, settings.gstin ? `GSTIN: ${settings.gstin}` : null].filter(Boolean).join('   ')
-if (contactStr) fieldRow('Contact', contactStr, LEFT_CARD + 12, fy, HALF_W - 24)
+let fy2 = INNER_Y + 22
+fy2 = plainTextRow(settings.store_address, LEFT_CARD + 12, fy2, HALF_W - 24)
+let phoneStr = settings.store_phone || ''
+if (settings.gstin) {
+  phoneStr += (phoneStr ? '   ' : '') + `GSTIN: ${settings.gstin}`
+}
+plainTextRow(phoneStr, LEFT_CARD + 12, fy2, HALF_W - 24)
 
 // TO card (customer info)
 card(RIGHT_CARD, Y, HALF_W, FROM_TO_H, C_WHITE)
@@ -205,14 +207,19 @@ doc.font('Helvetica-Bold').fontSize(8.5).fillColor(C_MUTED)
 const initials = order.customer_label.split(' ').map(w => w[0]).join('').slice(0,2)
 doc.text(initials, RIGHT_CARD + 18, INNER_Y + 8, { lineBreak: false })
 
-doc.font('Helvetica-Bold').fontSize(10.5).fillColor(C_TEXT)
-doc.text(order.customer_label, RIGHT_CARD + 46, INNER_Y + 4, { lineBreak: false })
-doc.font('Helvetica').fontSize(8).fillColor(C_MUTED)
-doc.text(order.customer_email, RIGHT_CARD + 46, INNER_Y + 17, { lineBreak: false })
-
-let ty2 = INNER_Y + 36
-ty2 = fieldRow('Phone',   order.customer_phone, RIGHT_CARD + 12, ty2, HALF_W - 24)
-fieldRow('Payment', `${order.payment_method}  ·  Channel: ${order.sales_channel}`, RIGHT_CARD + 12, ty2, HALF_W - 24)
+let ty2 = INNER_Y
+if (order.customer_label) {
+  doc.font('Helvetica-Bold').fontSize(10.5).fillColor(C_TEXT)
+  doc.text(order.customer_label, RIGHT_CARD + 12, ty2 + 5, { width: HALF_W - 24, lineBreak: false })
+  ty2 += 20
+}
+if (order.customer_email) {
+  doc.font('Helvetica').fontSize(8.5).fillColor(C_MUTED)
+  doc.text(order.customer_email, RIGHT_CARD + 12, ty2, { lineBreak: false })
+  ty2 += 14
+}
+ty2 = plainTextRow(order.customer_phone, RIGHT_CARD + 12, ty2, HALF_W - 24)
+plainTextRow(`${order.payment_method}  ·  Channel: ${order.sales_channel}`, RIGHT_CARD + 12, ty2, HALF_W - 24)
 
 Y += FROM_TO_H + 20
 
@@ -287,14 +294,14 @@ totRow('Total', fmt(order.total_amount), true)
 
 Y += 14
 
-// ── 7. TERMS ───────────────────────────────────────────────────────────────
+// ── TERMS & NOTES ──────────────────────────────────────────────────────
 divider(Y)
-Y += 16
-doc.font('Helvetica-Bold').fontSize(8).fillColor(C_MUTED)
-doc.text('TERMS & NOTES', CX, Y, { characterSpacing: 0.5, lineBreak: false })
-Y += 13
+Y += 14
+
+const termsText = settings.invoice_notes || 'Goods once sold will be exchanged or serviced only as per store policy.'
 doc.font('Helvetica').fontSize(9).fillColor(C_MUTED)
-doc.text('Goods once sold will be exchanged or serviced only as per store policy.', CX, Y, { width: CW, lineGap: 2 })
+doc.text(termsText, CX, Y, { width: CW, lineGap: 2 })
+Y = doc.y + 10
 
 // ── 8. FOOTER ──────────────────────────────────────────────────────────────
 const FOOTER_Y = CARD_Y + CARD_H - 36
