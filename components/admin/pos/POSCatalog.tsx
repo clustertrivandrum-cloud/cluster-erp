@@ -60,7 +60,7 @@ export default function POSCatalog({
             {/* Header Section */}
             <div className="bg-white border-b border-gray-100 shadow-sm z-10 sticky top-0">
                 {/* Search Bar */}
-                <div className="p-4 pb-2">
+                <div className="p-3 md:p-4 pb-2">
                     <div className="relative group">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                             <Search className="h-5 w-5 text-gray-400 group-focus-within:text-gray-900 transition-colors" />
@@ -68,7 +68,7 @@ export default function POSCatalog({
                         <input
                             type="text"
                             placeholder="Search products or scan barcode..."
-                            className="block w-full pl-11 pr-4 py-3.5 bg-gray-100/50 border-none rounded-2xl text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-gray-900/20 focus:bg-white transition-all font-medium text-lg"
+                            className="block w-full pl-10 md:pl-11 pr-3 md:pr-4 py-2.5 md:py-3.5 bg-gray-100/50 border-none rounded-2xl text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-gray-900/20 focus:bg-white transition-all font-medium text-base md:text-lg"
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                             autoFocus
@@ -81,7 +81,7 @@ export default function POSCatalog({
                     <div className="flex gap-2" ref={categoryScrollRef}>
                         <button
                             onClick={() => setSelectedCategoryId('all')}
-                            className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${selectedCategoryId === 'all'
+                            className={`flex-shrink-0 px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all border ${selectedCategoryId === 'all'
                                 ? 'bg-gray-900 text-white border-gray-900 shadow-md shadow-gray-200 transform scale-105'
                                 : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                 }`}
@@ -92,7 +92,7 @@ export default function POSCatalog({
                             <button
                                 key={category.id}
                                 onClick={() => setSelectedCategoryId(category.id)}
-                                className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${selectedCategoryId === category.id
+                                className={`flex-shrink-0 px-3 md:px-4 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all border ${selectedCategoryId === category.id
                                     ? 'bg-gray-900 text-white border-gray-900 shadow-md shadow-gray-200 transform scale-105'
                                     : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                     }`}
@@ -140,7 +140,7 @@ export default function POSCatalog({
                                         }
                                     }}
                                     disabled={!hasStock}
-                                    className="group relative bg-white rounded-3xl p-3 border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-left flex flex-col h-full active:scale-95 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-sm"
+                                    className="group relative bg-white rounded-2xl md:rounded-3xl p-2 md:p-3 border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-left flex flex-col h-full active:scale-95 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-sm"
                                 >
                                     {/* Image Container */}
                                     <div className="aspect-[4/3] bg-gray-50 rounded-2xl mb-3 relative overflow-hidden">
@@ -176,7 +176,7 @@ export default function POSCatalog({
 
                                     {/* Content */}
                                     <div className="flex-1 flex flex-col">
-                                        <h3 className="text-sm font-bold text-gray-900 line-clamp-2 leading-tight mb-2 group-hover:text-gray-700 transition-colors">
+                                        <h3 className="text-xs md:text-sm font-bold text-gray-900 line-clamp-2 leading-tight mb-2 group-hover:text-gray-700 transition-colors">
                                             {product.title}
                                         </h3>
                                         <p className="text-[11px] font-medium text-gray-500 mb-3">{skuLabel} · Stock: {Math.max(preferredStock, 0)}</p>
@@ -186,12 +186,12 @@ export default function POSCatalog({
                                                 {compareAt > price && (
                                                     <div className="text-xs text-gray-400 line-through font-medium">₹{compareAt}</div>
                                                 )}
-                                                <div className="text-lg font-black text-gray-900">
+                                                <div className="text-base md:text-lg font-black text-gray-900">
                                                     ₹{price}
                                                 </div>
                                             </div>
-                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-gray-900 group-hover:text-white transition-all shadow-sm">
-                                                <ShoppingCart className="w-4 h-4" />
+                                            <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 group-hover:bg-gray-900 group-hover:text-white transition-all shadow-sm">
+                                                <ShoppingCart className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                             </div>
                                         </div>
                                     </div>
@@ -244,7 +244,7 @@ export default function POSCatalog({
                                             <p className="text-xs text-gray-500 font-mono mt-1">{variant.sku ? `SKU: ${variant.sku}` : ''}</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="font-black text-gray-900 text-lg">₹{Number(variant.price ?? 0)}</p>
+                                            <p className="font-black text-gray-900 text-base md:text-lg">₹{Number(variant.price ?? 0)}</p>
                                             <p className={`text-xs font-bold mt-1 ${hasStock ? 'text-green-600' : 'text-red-500'}`}>
                                                 {hasStock ? `${stock} in stock` : 'Out of stock'}
                                             </p>

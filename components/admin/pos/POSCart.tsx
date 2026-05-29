@@ -215,10 +215,10 @@ export default function POSCart({
     return (
         <div className="flex flex-col h-full bg-white shadow-xl relative z-20">
             {/* Customer Header */}
-            <div className="p-4 border-b border-gray-100 bg-gray-50/50">
+            <div className="p-3 md:p-4 border-b border-gray-100 bg-gray-50/50">
                 {selectedCustomer ? (
                     <div className="relative">
-                        <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-100 shadow-sm group hover:border-gray-300 transition-colors cursor-pointer" onClick={() => setIsCustomerSearchOpen((current) => !current)}>
+                        <div className="flex items-center justify-between bg-white p-3 md:p-4 rounded-2xl border border-gray-100 shadow-sm group hover:border-gray-300 transition-colors cursor-pointer" onClick={() => setIsCustomerSearchOpen((current) => !current)}>
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-900 font-bold text-lg">
                                     {(selectedCustomer.first_name || 'G')[0]}
@@ -241,7 +241,7 @@ export default function POSCart({
                     <div className="relative">
                         <button
                             onClick={() => setIsCustomerSearchOpen(!isCustomerSearchOpen)}
-                            className="w-full flex items-center justify-between p-4 bg-white border border-gray-200 rounded-2xl hover:border-gray-400 hover:shadow-md text-gray-600 hover:text-gray-900 transition-all font-bold group"
+                            className="w-full flex items-center justify-between p-3 md:p-4 bg-white border border-gray-200 rounded-2xl hover:border-gray-400 hover:shadow-md text-gray-600 hover:text-gray-900 transition-all font-bold group"
                         >
                             <span className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-gray-100 group-hover:bg-gray-200 flex items-center justify-center transition-colors">
@@ -257,7 +257,7 @@ export default function POSCart({
             </div>
 
             {/* Cart Items List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-200">
+            <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3 scrollbar-thin scrollbar-thumb-gray-200">
                 {cart.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
                         <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4">
@@ -268,11 +268,11 @@ export default function POSCart({
                     </div>
                 ) : (
                     cart.map((item, idx) => (
-                        <div key={`${item.variant_id}_${idx}`} className="group flex items-center gap-3 bg-white p-3 rounded-2xl border border-gray-100 shadow-sm hover:border-gray-200 hover:shadow-md transition-all">
+                        <div key={`${item.variant_id}_${idx}`} className="group flex items-center gap-3 bg-white p-2 md:p-3 rounded-2xl border border-gray-100 shadow-sm hover:border-gray-200 hover:shadow-md transition-all">
                             {/* Image */}
-                            <div className="w-16 h-16 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative">
+                            <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative">
                                 {item.image ? (
-                                    <Image src={item.image} className="object-cover" alt={item.title} fill sizes="64px" />
+                                    <Image src={item.image} className="object-cover" alt={item.title} fill sizes="(max-width: 768px) 48px, 64px" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center">
                                         <ShoppingBag className="w-6 h-6 text-gray-200" />
@@ -282,10 +282,10 @@ export default function POSCart({
 
                             {/* Info */}
                             <div className="flex-1 min-w-0">
-                                <h4 className="text-sm font-bold text-gray-900 truncate">{item.title}</h4>
+                                <h4 className="text-xs md:text-sm font-bold text-gray-900 truncate">{item.title}</h4>
                                 <div className="flex items-center gap-2 mt-1">
                                     <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded uppercase tracking-wide">{item.variant_title !== 'Default Variant' ? item.variant_title : 'Std'}</span>
-                                    <span className="text-sm font-bold text-gray-900">₹{item.price * item.quantity}</span>
+                                    <span className="text-xs md:text-sm font-bold text-gray-900">₹{item.price * item.quantity}</span>
                                 </div>
                             </div>
 
@@ -293,16 +293,16 @@ export default function POSCart({
                             <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1 border border-gray-100">
                                 <button
                                     onClick={() => updateQuantity(item.variant_id, -1)}
-                                    className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-gray-600 hover:text-black hover:bg-gray-100 active:scale-90 transition-all"
+                                    className="w-6 h-6 md:w-8 md:h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-gray-600 hover:text-black hover:bg-gray-100 active:scale-90 transition-all"
                                 >
-                                    <Minus className="w-4 h-4" />
+                                    <Minus className="w-3 h-3 md:w-4 md:h-4" />
                                 </button>
-                                <span className="w-8 text-center text-sm font-black text-gray-900">{item.quantity}</span>
+                                <span className="w-6 md:w-8 text-center text-xs md:text-sm font-black text-gray-900">{item.quantity}</span>
                                 <button
                                     onClick={() => updateQuantity(item.variant_id, 1)}
-                                    className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-gray-600 hover:text-black hover:bg-gray-100 active:scale-90 transition-all"
+                                    className="w-6 h-6 md:w-8 md:h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-gray-600 hover:text-black hover:bg-gray-100 active:scale-90 transition-all"
                                 >
-                                    <Plus className="w-4 h-4" />
+                                    <Plus className="w-3 h-3 md:w-4 md:h-4" />
                                 </button>
                             </div>
                             <button
@@ -318,7 +318,7 @@ export default function POSCart({
             </div>
 
             {/* Calculations & Actions */}
-            <div className="px-5 pt-5 pb-3 bg-white border-t border-gray-100 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] rounded-t-3xl z-30">
+            <div className="px-4 md:px-5 pt-4 md:pt-5 pb-3 bg-white border-t border-gray-100 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] rounded-t-3xl z-30">
                 {/* Discount Toggle */}
                 <div className="mb-4">
                     <div className="flex items-center justify-between text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
@@ -348,8 +348,8 @@ export default function POSCart({
                     </div>
                 </div>
 
-                <div className="space-y-3 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-100/50">
-                    <div className="flex justify-between text-sm text-gray-500 font-medium">
+                <div className="space-y-3 mb-6 bg-gray-50 p-3 md:p-4 rounded-xl border border-gray-100/50">
+                    <div className="flex justify-between text-xs md:text-sm text-gray-500 font-medium">
                         <span>Subtotal</span>
                         <span className="text-gray-900">₹{subtotal.toFixed(2)}</span>
                     </div>
@@ -358,21 +358,21 @@ export default function POSCart({
                         <span className="text-gray-900">₹{taxAmount.toFixed(2)}</span>
                     </div>
                     {discountAmount > 0 && (
-                        <div className="flex justify-between text-sm text-red-500 font-bold">
+                        <div className="flex justify-between text-xs md:text-sm text-red-500 font-bold">
                             <span>Discount</span>
                             <span>-₹{discountAmount.toFixed(2)}</span>
                         </div>
                     )}
                     <div className="flex justify-between items-baseline pt-3 border-t border-gray-200/50 mt-1">
-                        <span className="text-base font-bold text-gray-900">Total Payable</span>
-                        <span className="text-2xl font-black text-gray-900">₹{grandTotal.toFixed(2)}</span>
+                        <span className="text-sm md:text-base font-bold text-gray-900">Total Payable</span>
+                        <span className="text-xl md:text-2xl font-black text-gray-900">₹{grandTotal.toFixed(2)}</span>
                     </div>
                 </div>
 
                 <button
                     onClick={onCheckout}
                     disabled={cart.length === 0}
-                    className="w-full py-4 bg-gray-900 hover:bg-black text-white rounded-2xl font-bold text-lg shadow-xl shadow-gray-200 active:scale-[0.98] transition-all disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
+                    className="w-full py-3 md:py-4 bg-gray-900 hover:bg-black text-white rounded-2xl font-bold text-base md:text-lg shadow-xl shadow-gray-200 active:scale-[0.98] transition-all disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
                 >
                     Proceed to Checkout
                     <span className="bg-gray-800 px-2 py-0.5 rounded text-sm group-hover:bg-gray-900">({cart.length})</span>

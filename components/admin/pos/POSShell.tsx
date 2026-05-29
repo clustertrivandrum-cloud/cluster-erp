@@ -406,7 +406,7 @@ export default function POSShell({ initialProducts, categories, initialCustomers
             {isCheckoutOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
                     <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden scale-100 animate-in zoom-in duration-200">
-                        <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                        <div className="px-4 md:px-6 py-4 md:py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                             <div>
                                 <h2 className="text-xl font-bold text-gray-900">Checkout</h2>
                                 <p className="text-xs text-gray-500">Complete payment to print receipt</p>
@@ -416,9 +416,9 @@ export default function POSShell({ initialProducts, categories, initialCustomers
                             </button>
                         </div>
 
-                        <div className="p-6 space-y-6">
+                        <div className="p-4 md:p-6 space-y-4 md:space-y-6">
                             {/* Total Hero */}
-                            <div className="text-center py-4 bg-gray-50 rounded-2xl border border-gray-200">
+                            <div className="text-center py-3 md:py-4 bg-gray-50 rounded-2xl border border-gray-200">
                                 <p className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Total Payable</p>
                                 <p className="text-4xl font-black text-gray-900 tracking-tight">₹{grandTotal.toFixed(2)}</p>
                             </div>
@@ -431,21 +431,21 @@ export default function POSShell({ initialProducts, categories, initialCustomers
                                         type="text"
                                         value={customerDetails.fullName}
                                         onChange={e => setCustomerDetails((current) => ({ ...current, fullName: e.target.value }))}
-                                        className="block w-full border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 sm:text-sm p-3 bg-white text-gray-900 placeholder:text-gray-400"
+                                        className="block w-full border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 text-sm p-2 md:p-3 bg-white text-gray-900 placeholder:text-gray-400"
                                         placeholder="Customer name"
                                     />
                                     <input
                                         type="email"
                                         value={customerDetails.email}
                                         onChange={e => setCustomerDetails((current) => ({ ...current, email: e.target.value }))}
-                                        className="block w-full border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 sm:text-sm p-3 bg-white text-gray-900 placeholder:text-gray-400"
+                                        className="block w-full border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 text-sm p-2 md:p-3 bg-white text-gray-900 placeholder:text-gray-400"
                                         placeholder="Customer email"
                                     />
                                     <input
                                         type="text"
                                         value={customerDetails.phone}
                                         onChange={e => setCustomerDetails((current) => ({ ...current, phone: e.target.value }))}
-                                        className="block w-full border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 sm:text-sm p-3 bg-white text-gray-900 placeholder:text-gray-400"
+                                        className="block w-full border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 text-sm p-2 md:p-3 bg-white text-gray-900 placeholder:text-gray-400"
                                         placeholder="Customer phone"
                                     />
                                 </div>
@@ -459,15 +459,15 @@ export default function POSShell({ initialProducts, categories, initialCustomers
                                         <button
                                             key={method}
                                             onClick={() => setPaymentMethod(method)}
-                                            className={`flex flex-col items-center justify-center py-4 rounded-xl border-2 transition-all duration-200 ${paymentMethod === method
+                                            className={`flex flex-col items-center justify-center py-2 md:py-4 rounded-xl border-2 transition-all duration-200 ${paymentMethod === method
                                                 ? 'border-gray-900 bg-gray-900 text-white shadow-md transform scale-[1.02]'
                                                 : 'border-gray-100 bg-white text-gray-400 hover:border-gray-300 hover:bg-gray-50'
                                                 }`}
                                         >
-                                            {method === 'Cash' && <Banknote className={`w-8 h-8 mb-2 ${paymentMethod === method ? 'text-white' : 'text-gray-300'}`} />}
-                                            {method === 'Card' && <CreditCard className={`w-8 h-8 mb-2 ${paymentMethod === method ? 'text-white' : 'text-gray-300'}`} />}
-                                            {method === 'UPI' && <CheckCircle className={`w-8 h-8 mb-2 ${paymentMethod === method ? 'text-white' : 'text-gray-300'}`} />}
-                                            <span className="font-bold text-sm">{method}</span>
+                                            {method === 'Cash' && <Banknote className={`w-6 h-6 md:w-8 md:h-8 mb-1 md:mb-2 ${paymentMethod === method ? 'text-white' : 'text-gray-300'}`} />}
+                                            {method === 'Card' && <CreditCard className={`w-6 h-6 md:w-8 md:h-8 mb-1 md:mb-2 ${paymentMethod === method ? 'text-white' : 'text-gray-300'}`} />}
+                                            {method === 'UPI' && <CheckCircle className={`w-6 h-6 md:w-8 md:h-8 mb-1 md:mb-2 ${paymentMethod === method ? 'text-white' : 'text-gray-300'}`} />}
+                                            <span className="font-bold text-xs md:text-sm">{method}</span>
                                         </button>
                                     ))}
                                 </div>
@@ -475,15 +475,15 @@ export default function POSShell({ initialProducts, categories, initialCustomers
 
                             {/* Cash Input */}
                             {paymentMethod === 'Cash' && (
-                                <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 animate-in fade-in slide-in-from-top-2">
+                                <div className="bg-gray-50 p-3 md:p-4 rounded-2xl border border-gray-200 animate-in fade-in slide-in-from-top-2">
                                     <label className="block text-xs font-bold text-gray-500 mb-2">Amount Received</label>
                                     <div className="relative">
-                                        <span className="absolute left-4 top-3.5 text-gray-400 text-lg font-bold">₹</span>
+                                        <span className="absolute left-4 top-2.5 md:top-3.5 text-gray-400 text-lg font-bold">₹</span>
                                         <input
                                             type="number"
                                             value={amountTendered}
                                             onChange={e => setAmountTendered(e.target.value)}
-                                            className="block w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900 text-lg font-bold shadow-sm text-gray-900 placeholder:text-gray-400"
+                                            className="block w-full pl-10 pr-4 py-2 md:py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-gray-900 focus:border-gray-900 text-lg font-bold shadow-sm text-gray-900 placeholder:text-gray-400"
                                             placeholder="0.00"
                                             autoFocus
                                         />
@@ -504,7 +504,7 @@ export default function POSShell({ initialProducts, categories, initialCustomers
                                     rows={2}
                                     value={notes}
                                     onChange={e => setNotes(e.target.value)}
-                                    className="block w-full border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 sm:text-sm p-3 resize-none bg-gray-50 text-gray-900 placeholder:text-gray-400"
+                                    className="block w-full border border-gray-200 rounded-xl shadow-sm focus:ring-2 focus:ring-gray-900/20 focus:border-gray-900 text-sm p-2 md:p-3 resize-none bg-gray-50 text-gray-900 placeholder:text-gray-400"
                                     placeholder="Optional notes..."
                                 />
                             </div>
@@ -512,7 +512,7 @@ export default function POSShell({ initialProducts, categories, initialCustomers
                             <button
                                 onClick={handleCheckoutSubmit}
                                 disabled={isProcessing}
-                                className="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold text-lg hover:bg-black disabled:opacity-70 disabled:hover:bg-gray-900 shadow-xl shadow-gray-200 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                                className="w-full bg-gray-900 text-white py-3 md:py-4 rounded-2xl font-bold text-base md:text-lg hover:bg-black disabled:opacity-70 disabled:hover:bg-gray-900 shadow-xl shadow-gray-200 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
                             >
                                 {isProcessing ? (
                                     <span className="animate-pulse">Processing...</span>
