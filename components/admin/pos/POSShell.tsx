@@ -241,7 +241,7 @@ export default function POSShell({ initialProducts, categories, initialCustomers
     }
 
 
-    const handleCheckoutSubmit = async () => {
+    const handleCheckoutSubmit = async (openInvoice = false) => {
         if (cart.length === 0) {
             return
         }
@@ -256,7 +256,10 @@ export default function POSShell({ initialProducts, categories, initialCustomers
         }
 
         // Open window before await to prevent popup blocker
-        const invoiceWindow = window.open('about:blank', '_blank')
+        let invoiceWindow: Window | null = null;
+        if (openInvoice) {
+            invoiceWindow = window.open('about:blank', '_blank')
+        }
         setIsProcessing(true)
 
         const orderInput = {
@@ -285,10 +288,12 @@ export default function POSShell({ initialProducts, categories, initialCustomers
         const res = await createOrder(orderInput)
 
         if (res.success) {
-            if (invoiceWindow) {
-                invoiceWindow.location.href = `/admin/orders/${res.orderId}/invoice`
-            } else {
-                window.open(`/admin/orders/${res.orderId}/invoice`, '_blank') // Fallback 
+            if (openInvoice) {
+                if (invoiceWindow) {
+                    invoiceWindow.location.href = `/admin/orders/${res.orderId}/invoice`
+                } else {
+                    window.open(`/admin/orders/${res.orderId}/invoice`, '_blank') // Fallback 
+                }
             }
             setCart([])
             setAmountTendered('')
@@ -509,20 +514,31 @@ export default function POSShell({ initialProducts, categories, initialCustomers
                                 />
                             </div>
 
-                            <button
-                                onClick={handleCheckoutSubmit}
-                                disabled={isProcessing}
-                                className="w-full bg-gray-900 text-white py-3 md:py-4 rounded-2xl font-bold text-base md:text-lg hover:bg-black disabled:opacity-70 disabled:hover:bg-gray-900 shadow-xl shadow-gray-200 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
-                            >
-                                {isProcessing ? (
-                                    <span className="animate-pulse">Processing...</span>
-                                ) : (
-                                    <>
-                                        <Printer className="w-5 h-5" />
-                                        Complete & Print Bill
-                                    </>
-                                )}
-                            </button>
+                            <div className="flex flex-col gap-3">
+                                <button
+                                    onClick={() => handleCheckoutSubmit(false)}
+                                    disabled={isProcessing}
+                                    className="w-full bg-gray-900 text-white py-3 md:py-4 rounded-2xl font-bold text-base md:text-lg hover:bg-black disabled:opacity-70 disabled:hover:bg-gray-900 shadow-xl shadow-gray-200 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                                >
+                                    {isProcessing ? (
+                                        <span className="animate-pulse">Processing...</span>
+                                    ) : (
+                                        'Complete Order'
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => handleCheckoutSubmit(true)}
+                                    disabled={isProcessing}
+                                    className="w-full bg-white text-gray-700 border border-gray-200 py-3 md:py-4 rounded-2xl font-bold text-base md:text-lg hover:bg-gray-50 disabled:opacity-70 disabled:hover:bg-white active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                                >
+                                    {!isProcessing && (
+                                        <>
+                                            <Printer className="w-5 h-5 text-gray-500" />
+                                            Complete & Get Bill
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
