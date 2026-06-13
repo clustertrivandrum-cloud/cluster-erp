@@ -422,6 +422,11 @@ async function syncProductOptionsAndVariants(
 
     for (const [variantIndex, variant] of variants.entries()) {
         const variantIdentity = buildVariantIdentity(options, variant.options || {})
+        
+        if (options.length > 0 && !variantIdentity.optionSignature) {
+            throw new Error(`Variant "${variant.title || variant.sku}" is missing valid options for the product.`)
+        }
+
         const matchingVariant = variantRows.find((row) => row.id === variant.id)
             || variantRows.find((row) => row.option_signature && row.option_signature === variantIdentity.optionSignature)
             || variantRows.find((row) => row.title && row.title === variantIdentity.title)
