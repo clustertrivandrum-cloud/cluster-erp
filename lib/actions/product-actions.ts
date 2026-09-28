@@ -521,6 +521,7 @@ type ProductOptionInput = {
 
 type ProductVariantInput = {
     id?: string
+    title?: string | null
     sku?: string | null
     barcode?: string | null
     price?: string | number | null
@@ -752,6 +753,7 @@ export async function createProduct(formData: FormData) {
         // Shipping
         shipping_class: formData.get('shipping_class') as string || 'standard',
         return_policy: formData.get('return_policy') as string,
+        is_free_delivery: formData.get('is_free_delivery') === 'on',
     }
 
     // 1. Create Product
@@ -1123,6 +1125,7 @@ export async function updateProduct(id: string, formData: FormData) {
         warranty_period: formData.get('warranty_period') as string,
         shipping_class: formData.get('shipping_class') as string || 'standard',
         return_policy: formData.get('return_policy') as string,
+        is_free_delivery: formData.get('is_free_delivery') === 'on',
         updated_at: new Date().toISOString()
     }
 

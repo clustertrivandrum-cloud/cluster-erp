@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('products')
-    .select('id, title, slug, status, vendor, brand, created_at')
+    .select('id, title, slug, status, vendor, brand, is_free_delivery, created_at')
     .order('created_at', { ascending: false })
     .limit(limit)
 

@@ -127,6 +127,24 @@ export default function DetailsSection({ customizationTemplate, setCustomization
                         defaultValue={initialData?.return_policy}
                     />
                 </div>
+
+                <div className="flex items-center space-x-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <input
+                        type="checkbox"
+                        id="is_free_delivery"
+                        name="is_free_delivery"
+                        className="h-4 w-4 text-gray-900 focus:ring-gray-900 border-gray-300 rounded"
+                        defaultChecked={Boolean(initialData?.is_free_delivery)}
+                    />
+                    <div>
+                        <label htmlFor="is_free_delivery" className="text-sm font-medium text-gray-700 block cursor-pointer">
+                            Free Delivery
+                        </label>
+                        <p className="text-xs text-gray-500">
+                            Orders containing this product will receive free shipping regardless of cart value.
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
     )

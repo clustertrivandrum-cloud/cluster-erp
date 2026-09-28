@@ -102,6 +102,7 @@ type InitialProduct = {
     is_customizable?: boolean | null
     shipping_class?: string | null
     return_policy?: string | null
+    is_free_delivery?: boolean | null
     seo_title?: string | null
     seo_description?: string | null
 } & StatusSectionInitialData

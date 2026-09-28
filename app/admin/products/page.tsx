@@ -95,7 +95,14 @@ export default async function ProductsPage({
                                                 )}
                                             </div>
                                             <div className="ml-4">
-                                                <div className="text-sm font-medium text-gray-900">{product.title}</div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-medium text-gray-900">{product.title}</span>
+                                                    {product.is_free_delivery && (
+                                                        <span className="px-2 py-0.5 inline-flex text-[11px] leading-4 font-semibold rounded-full bg-emerald-100 text-emerald-800">
+                                                            Free Delivery
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <div className="text-sm text-gray-500 truncate max-w-xs">{product.slug}</div>
                                             </div>
                                         </div>
